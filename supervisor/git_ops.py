@@ -54,12 +54,14 @@ def git_capture(cmd: List[str]) -> Tuple[int, str, str]:
 
 
 def ensure_repo_present() -> None:
+    fresh_init = False
     if not (REPO_DIR / ".git").exists():
         # Init git in-place (don't rm -rf /app — we're running from it!)
         REPO_DIR.mkdir(parents=True, exist_ok=True)
         subprocess.run(["git", "init"], cwd=str(REPO_DIR), check=True)
         subprocess.run(["git", "remote", "add", "origin", REMOTE_URL],
                         cwd=str(REPO_DIR), check=True)
+        fresh_init = True
     else:
         subprocess.run(["git", "remote", "set-url", "origin", REMOTE_URL],
                         cwd=str(REPO_DIR), check=True)
@@ -67,6 +69,11 @@ def ensure_repo_present() -> None:
     subprocess.run(["git", "config", "user.email", "ouroboros@users.noreply.github.com"],
                     cwd=str(REPO_DIR), check=True)
     subprocess.run(["git", "fetch", "origin"], cwd=str(REPO_DIR), check=True)
+    if fresh_init:
+        # Dockerfile COPY put files here — align git index with origin/main
+        # so checkout_and_reset won't fail on "untracked files"
+        subprocess.run(["git", "checkout", "-f", "origin/main", "--"],
+                        cwd=str(REPO_DIR), check=True)
 
 
 # ---------------------------------------------------------------------------

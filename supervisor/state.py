@@ -28,14 +28,13 @@ STATE_LOCK_PATH: pathlib.Path = DRIVE_ROOT / "locks" / "state.lock"
 QUEUE_SNAPSHOT_PATH: pathlib.Path = DRIVE_ROOT / "state" / "queue_snapshot.json"
 
 
-def init(drive_root: pathlib.Path, total_budget_limit: float = 0.0) -> None:
+def init(drive_root: pathlib.Path, **_kwargs) -> None:
     global DRIVE_ROOT, STATE_PATH, STATE_LAST_GOOD_PATH, STATE_LOCK_PATH, QUEUE_SNAPSHOT_PATH
     DRIVE_ROOT = drive_root
     STATE_PATH = drive_root / "state" / "state.json"
     STATE_LAST_GOOD_PATH = drive_root / "state" / "state.last_good.json"
     STATE_LOCK_PATH = drive_root / "locks" / "state.lock"
     QUEUE_SNAPSHOT_PATH = drive_root / "state" / "queue_snapshot.json"
-    set_budget_limit(total_budget_limit)
 
 
 # ---------------------------------------------------------------------------
@@ -141,15 +140,13 @@ def ensure_state_defaults(st: Dict[str, Any]) -> Dict[str, Any]:
     st.setdefault("budget_messages_since_report", 0)
     st.setdefault("evolution_mode_enabled", False)
     st.setdefault("evolution_cycle", 0)
-    st.setdefault("session_total_snapshot", None)
-    st.setdefault("session_spent_snapshot", None)
-    st.setdefault("budget_drift_pct", None)
-    st.setdefault("budget_drift_alert", False)
     st.setdefault("evolution_consecutive_failures", 0)
     st.setdefault("no_approve_mode", False)
     st.setdefault("initialized", False)
     for legacy_key in ("approvals", "idle_cursor", "idle_stats", "last_idle_task_at",
-                        "last_auto_review_at", "last_review_task_id", "session_daily_snapshot"):
+                        "last_auto_review_at", "last_review_task_id", "session_daily_snapshot",
+                        "session_total_snapshot", "session_spent_snapshot",
+                        "budget_drift_pct", "budget_drift_alert"):
         st.pop(legacy_key, None)
     return st
 
@@ -208,32 +205,25 @@ def save_state(st: Dict[str, Any]) -> None:
 
 def init_state() -> Dict[str, Any]:
     """
-    Initialize state at session start, capturing snapshots for budget drift detection.
+    Initialize state at session start.
 
-    Fetches OpenRouter ground truth and stores session_daily_snapshot and
-    session_spent_snapshot for drift calculation.
+    Fetches OpenRouter ground truth to seed budget info (limit_remaining)
+    so it's available from the first task.
     """
     lock_fd = acquire_file_lock(STATE_LOCK_PATH)
     try:
         st = _load_state_unlocked()
 
-        # Capture session snapshots for drift detection
-        st["session_spent_snapshot"] = float(st.get("spent_usd") or 0.0)
-
-        # Fetch OpenRouter ground truth to capture total_usd baseline
+        # Seed budget from OpenRouter API so limit_remaining is available immediately
         ground_truth = check_openrouter_ground_truth()
         if ground_truth is not None:
-            st["session_total_snapshot"] = ground_truth["total_usd"]
             st["openrouter_total_usd"] = ground_truth["total_usd"]
             st["openrouter_daily_usd"] = ground_truth["daily_usd"]
+            if "limit" in ground_truth:
+                st["openrouter_limit"] = ground_truth["limit"]
+            if "limit_remaining" in ground_truth:
+                st["openrouter_limit_remaining"] = ground_truth["limit_remaining"]
             st["openrouter_last_check_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        else:
-            # If we can't fetch ground truth, use 0 as baseline
-            st["session_total_snapshot"] = 0.0
-
-        # Reset drift tracking
-        st["budget_drift_pct"] = None
-        st["budget_drift_alert"] = False
 
         _save_state_unlocked(st)
         return st
@@ -242,32 +232,33 @@ def init_state() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Budget tracking (moved from workers.py)
+# Budget tracking
 # ---------------------------------------------------------------------------
-TOTAL_BUDGET_LIMIT: float = 0.0
 EVOLUTION_BUDGET_RESERVE: float = 50.0  # Stop evolution when remaining < this
 
 
-def set_budget_limit(limit: float) -> None:
-    """Set total budget limit for budget_pct calculation."""
-    global TOTAL_BUDGET_LIMIT
-    TOTAL_BUDGET_LIMIT = limit
+def openrouter_budget_remaining(st: Dict[str, Any]) -> float:
+    """Return remaining budget from OpenRouter API (single source of truth).
 
-
-def budget_remaining(st: Dict[str, Any]) -> float:
-    """Calculate remaining budget in USD."""
-    spent = float(st.get("spent_usd") or 0.0)
-    total = float(TOTAL_BUDGET_LIMIT or 0.0)
+    Falls back to TOTAL_BUDGET - spent_usd if OpenRouter limit not yet fetched.
+    Returns float('inf') if no limit is configured anywhere.
+    """
+    or_remaining = st.get("openrouter_limit_remaining")
+    if or_remaining is not None:
+        return float(or_remaining)
+    # Fallback: TOTAL_BUDGET env var minus internal tracking
+    total = float(os.environ.get("TOTAL_BUDGET", "0"))
     if total <= 0:
-        return float('inf')  # No limit set
+        return float('inf')
+    spent = float(st.get("spent_usd") or 0.0)
     return max(0.0, total - spent)
 
 
 def check_openrouter_ground_truth() -> Optional[Dict[str, float]]:
     """
-    Call OpenRouter API to get ground truth usage.
+    Call OpenRouter API to get ground truth usage and key limits.
 
-    Returns dict with total_usd and daily_usd spent according to OpenRouter, or None on error.
+    Returns dict with total_usd, daily_usd, limit, and limit_remaining, or None on error.
     """
     try:
         import urllib.request
@@ -281,24 +272,23 @@ def check_openrouter_ground_truth() -> Optional[Dict[str, float]]:
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         # OpenRouter API returns usage already in dollars (not cents)
-        usage_total = data.get("data", {}).get("usage", 0)
-        usage_daily = data.get("data", {}).get("usage_daily", 0)
-        return {
+        key_data = data.get("data", {})
+        usage_total = key_data.get("usage", 0)
+        usage_daily = key_data.get("usage_daily", 0)
+        limit = key_data.get("limit")
+        limit_remaining = key_data.get("limit_remaining")
+        result = {
             "total_usd": float(usage_total),
             "daily_usd": float(usage_daily),
         }
+        if limit is not None:
+            result["limit"] = float(limit)
+        if limit_remaining is not None:
+            result["limit_remaining"] = float(limit_remaining)
+        return result
     except Exception:
         log.warning("Failed to fetch OpenRouter ground truth", exc_info=True)
         return None
-
-
-def budget_pct(st: Dict[str, Any]) -> float:
-    """Calculate budget percentage used."""
-    spent = float(st.get("spent_usd") or 0.0)
-    total = float(TOTAL_BUDGET_LIMIT or 0.0)
-    if total <= 0:
-        return 0.0
-    return (spent / total) * 100.0
 
 
 def update_budget_from_usage(usage: Dict[str, Any]) -> None:
@@ -307,7 +297,7 @@ def update_budget_from_usage(usage: Dict[str, Any]) -> None:
     Uses a single lock scope for the read-modify-write cycle to prevent
     concurrent writes from losing budget updates.
 
-    Every 50 calls, fetches OpenRouter ground truth for comparison.
+    Every 10 calls, fetches OpenRouter ground truth to refresh limit_remaining.
     """
     def _to_float(v: Any, default: float = 0.0) -> float:
         try:
@@ -339,7 +329,7 @@ def update_budget_from_usage(usage: Dict[str, Any]) -> None:
             usage.get("completion_tokens") if isinstance(usage, dict) else 0)
         st["spent_tokens_cached"] = _to_int(st.get("spent_tokens_cached") or 0) + _to_int(
             usage.get("cached_tokens") if isinstance(usage, dict) else 0)
-        should_check_ground_truth = (st["spent_calls"] % 50 == 0)
+        should_check_ground_truth = (st["spent_calls"] % 10 == 0)
         _save_state_unlocked(st)
     finally:
         release_file_lock(STATE_LOCK_PATH, lock_fd)
@@ -353,42 +343,11 @@ def update_budget_from_usage(usage: Dict[str, Any]) -> None:
                 st = _load_state_unlocked()
                 st["openrouter_total_usd"] = ground_truth["total_usd"]
                 st["openrouter_daily_usd"] = ground_truth["daily_usd"]
+                if "limit" in ground_truth:
+                    st["openrouter_limit"] = ground_truth["limit"]
+                if "limit_remaining" in ground_truth:
+                    st["openrouter_limit_remaining"] = ground_truth["limit_remaining"]
                 st["openrouter_last_check_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-                session_total_snap = st.get("session_total_snapshot")
-                session_spent_snap = st.get("session_spent_snapshot")
-
-                if session_total_snap is not None and session_spent_snap is not None:
-                    current_total_usd = ground_truth["total_usd"]
-                    current_spent_usd = _to_float(st.get("spent_usd") or 0.0)
-                    or_delta = current_total_usd - _to_float(session_total_snap)
-                    our_delta = current_spent_usd - _to_float(session_spent_snap)
-
-                    if or_delta > 0.001:
-                        drift_pct = abs(or_delta - our_delta) / max(abs(or_delta), 0.01) * 100.0
-                        st["budget_drift_pct"] = drift_pct
-                        abs_diff = abs(or_delta - our_delta)
-                        if drift_pct > 50.0 and abs_diff > 5.0:
-                            st["budget_drift_alert"] = True
-                            append_jsonl(
-                                DRIVE_ROOT / "logs" / "events.jsonl",
-                                {
-                                    "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                                    "event": "budget_drift_warning",
-                                    "drift_pct": round(drift_pct, 2),
-                                    "our_delta": round(our_delta, 4),
-                                    "or_delta": round(or_delta, 4),
-                                    "abs_diff": round(abs_diff, 4),
-                                    "spent_calls": st["spent_calls"],
-                                    "note": "High drift expected if OR key is shared or tracking had early bugs",
-                                }
-                            )
-                        else:
-                            st["budget_drift_alert"] = False
-                    else:
-                        st["budget_drift_pct"] = 0.0
-                        st["budget_drift_alert"] = False
-
                 _save_state_unlocked(st)
             finally:
                 release_file_lock(STATE_LOCK_PATH, lock_fd)
@@ -590,14 +549,13 @@ def status_text(workers_dict: Dict[int, Any], pending_list: list, running_dict: 
     if running_dict and busy_count == 0:
         lines.append("queue_warning: running>0 while busy=0")
     spent = float(st.get("spent_usd") or 0.0)
-    pct = budget_pct(st)
-    budget_remaining_usd = max(0, TOTAL_BUDGET_LIMIT - spent)
-    lines.append(f"budget_total: ${TOTAL_BUDGET_LIMIT:.0f}")
-    lines.append(f"budget_remaining: ${budget_remaining_usd:.0f}")
-    if pct > 0:
-        lines.append(f"spent_usd: ${spent:.2f} ({pct:.1f}% of budget)")
-    else:
-        lines.append(f"spent_usd: ${spent:.2f}")
+    or_remaining = st.get("openrouter_limit_remaining")
+    or_limit = st.get("openrouter_limit")
+    if or_remaining is not None:
+        lines.append(f"openrouter_remaining: ${float(or_remaining):.2f}")
+    if or_limit is not None:
+        lines.append(f"openrouter_limit: ${float(or_limit):.2f}")
+    lines.append(f"spent_usd (tracked): ${spent:.2f}")
     lines.append(f"spent_calls: {st.get('spent_calls')}")
     lines.append(f"prompt_tokens: {st.get('spent_tokens_prompt')}, completion_tokens: {st.get('spent_tokens_completion')}, cached_tokens: {st.get('spent_tokens_cached')}")
 
@@ -609,23 +567,6 @@ def status_text(workers_dict: Dict[int, Any], pending_list: list, running_dict: 
         breakdown_parts = [f"{cat}=${cost:.2f}" for cat, cost in sorted_categories if cost > 0]
         if breakdown_parts:
             lines.append(f"budget_breakdown: {', '.join(breakdown_parts)}")
-
-    # Display budget drift if available
-    drift_pct = st.get("budget_drift_pct")
-    if drift_pct is not None:
-        session_total_snap = st.get("session_total_snapshot")
-        session_spent_snap = st.get("session_spent_snapshot")
-        or_total = st.get("openrouter_total_usd")
-
-        if session_total_snap is not None and session_spent_snap is not None and or_total is not None:
-            or_delta = or_total - session_total_snap
-            our_delta = spent - session_spent_snap
-
-            drift_icon = " ⚠️" if st.get("budget_drift_alert") else ""
-            lines.append(
-                f"budget_drift: {drift_pct:.1f}%{drift_icon} "
-                f"(tracked: ${our_delta:.2f} vs OpenRouter: ${or_delta:.2f})"
-            )
 
     # Model breakdown
     models = model_breakdown(st)

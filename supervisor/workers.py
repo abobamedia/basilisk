@@ -36,7 +36,6 @@ SOFT_TIMEOUT_SEC: int = 600
 HARD_TIMEOUT_SEC: int = 1800
 HEARTBEAT_STALE_SEC: int = 120
 QUEUE_MAX_RETRIES: int = 1
-TOTAL_BUDGET_LIMIT: float = 0.0
 BRANCH_DEV: str = "ouroboros"
 BRANCH_STABLE: str = "ouroboros-stable"
 
@@ -62,16 +61,16 @@ def _get_ctx():
 
 
 def init(repo_dir: pathlib.Path, drive_root: pathlib.Path, max_workers: int,
-         soft_timeout: int, hard_timeout: int, total_budget_limit: float,
-         branch_dev: str = "ouroboros", branch_stable: str = "ouroboros-stable") -> None:
+         soft_timeout: int, hard_timeout: int,
+         branch_dev: str = "ouroboros", branch_stable: str = "ouroboros-stable",
+         **_kwargs) -> None:
     global REPO_DIR, DRIVE_ROOT, MAX_WORKERS, SOFT_TIMEOUT_SEC, HARD_TIMEOUT_SEC
-    global TOTAL_BUDGET_LIMIT, BRANCH_DEV, BRANCH_STABLE
+    global BRANCH_DEV, BRANCH_STABLE
     REPO_DIR = repo_dir
     DRIVE_ROOT = drive_root
     MAX_WORKERS = max_workers
     SOFT_TIMEOUT_SEC = soft_timeout
     HARD_TIMEOUT_SEC = hard_timeout
-    TOTAL_BUDGET_LIMIT = total_budget_limit
     BRANCH_DEV = branch_dev
     BRANCH_STABLE = branch_stable
 
@@ -476,14 +475,14 @@ def respawn_worker(wid: int) -> None:
 
 def assign_tasks() -> None:
     from supervisor import queue
-    from supervisor.state import budget_remaining, EVOLUTION_BUDGET_RESERVE
+    from supervisor.state import openrouter_budget_remaining, EVOLUTION_BUDGET_RESERVE
     with _queue_lock:
         for w in WORKERS.values():
             if w.busy_task_id is None and PENDING:
                 # Find first suitable task (skip over-budget evolution tasks)
                 chosen_idx = None
                 for i, candidate in enumerate(PENDING):
-                    if str(candidate.get("type") or "") == "evolution" and budget_remaining(load_state()) < EVOLUTION_BUDGET_RESERVE:
+                    if str(candidate.get("type") or "") == "evolution" and openrouter_budget_remaining(load_state()) < EVOLUTION_BUDGET_RESERVE:
                         continue
                     chosen_idx = i
                     break

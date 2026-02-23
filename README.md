@@ -72,10 +72,10 @@ Assumes you have a VPS (Ubuntu/Debian) with SSH access.
 |-----|----------|-----------------|
 | `OPENROUTER_API_KEY` | Yes | [openrouter.ai/keys](https://openrouter.ai/keys) -- Create an account, add credits, generate a key |
 | `TELEGRAM_BOT_TOKEN` | Yes | Create a bot via [@BotFather](https://t.me/BotFather) on Telegram (`/newbot`), copy the token |
-| `TOTAL_BUDGET` | Yes | Your spending limit in USD (e.g. `50`) |
 | `GITHUB_TOKEN` | Yes | [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new) -- Fine-grained token with **Contents: Read and write** on your fork |
 | `OPENAI_API_KEY` | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) -- Enables web search tool |
 | `ANTHROPIC_API_KEY` | Yes | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) -- Claude Code CLI (sole code editing path) |
+| `TOTAL_BUDGET` | No | Fallback spending limit in USD if OpenRouter key has no limit set |
 
 ### Step 2: Fork the Repository
 
@@ -178,7 +178,6 @@ Full text: [BIBLE.md](BIBLE.md)
 |----------|-------------|
 | `OPENROUTER_API_KEY` | OpenRouter API key for LLM calls |
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot API token |
-| `TOTAL_BUDGET` | Spending limit in USD |
 | `GITHUB_TOKEN` | GitHub personal access token with `repo` scope |
 
 ### Optional Secrets
@@ -186,6 +185,7 @@ Full text: [BIBLE.md](BIBLE.md)
 | Variable | Description |
 |----------|-------------|
 | `OPENAI_API_KEY` | Enables the `web_search` tool |
+| `TOTAL_BUDGET` | Fallback spending limit in USD (only used if OpenRouter key has no limit set) |
 
 ### Optional Configuration (environment variables)
 

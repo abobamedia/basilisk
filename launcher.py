@@ -49,7 +49,6 @@ def _parse_int_cfg(raw: Optional[str], default: int, minimum: int = 0) -> int:
 
 OPENROUTER_API_KEY = get_secret("OPENROUTER_API_KEY", required=True)
 TELEGRAM_BOT_TOKEN = get_secret("TELEGRAM_BOT_TOKEN", required=True)
-TOTAL_BUDGET_LIMIT = float(os.environ["TOTAL_BUDGET"])
 GITHUB_TOKEN = get_secret("GITHUB_TOKEN", required=True)
 
 OPENAI_API_KEY = get_secret("OPENAI_API_KEY", default="")
@@ -134,7 +133,7 @@ from supervisor.state import (
     update_budget_from_usage, status_text, rotate_chat_log_if_needed,
     init_state,
 )
-state_init(DRIVE_ROOT, TOTAL_BUDGET_LIMIT)
+state_init(DRIVE_ROOT)
 init_state()
 
 from supervisor.telegram import (
@@ -143,7 +142,6 @@ from supervisor.telegram import (
 TG = TelegramClient(str(TELEGRAM_BOT_TOKEN))
 telegram_init(
     drive_root=DRIVE_ROOT,
-    total_budget_limit=TOTAL_BUDGET_LIMIT,
     budget_report_every=BUDGET_REPORT_EVERY_MESSAGES,
     tg_client=TG,
 )
@@ -171,7 +169,6 @@ from supervisor.workers import (
 workers_init(
     repo_dir=REPO_DIR, drive_root=DRIVE_ROOT, max_workers=MAX_WORKERS,
     soft_timeout=SOFT_TIMEOUT_SEC, hard_timeout=HARD_TIMEOUT_SEC,
-    total_budget_limit=TOTAL_BUDGET_LIMIT,
     branch_dev=BRANCH_DEV, branch_stable=BRANCH_STABLE,
 )
 
@@ -450,18 +447,28 @@ def _handle_supervisor_command(text: str, chat_id: int, tg_offset: int = 0):
         return True
 
     if lowered.startswith("/budget"):
+        # Fetch fresh ground truth from OpenRouter
+        from supervisor.state import check_openrouter_ground_truth, budget_breakdown
+        ground_truth = check_openrouter_ground_truth()
         st2 = load_state()
-        spent = float(st2.get("spent_usd") or 0.0)
-        total = float(TOTAL_BUDGET_LIMIT)
-        remaining = max(0, total - spent)
-        from supervisor.state import budget_breakdown
+        if ground_truth is not None:
+            st2["openrouter_total_usd"] = ground_truth["total_usd"]
+            st2["openrouter_daily_usd"] = ground_truth["daily_usd"]
+            if "limit" in ground_truth:
+                st2["openrouter_limit"] = ground_truth["limit"]
+            if "limit_remaining" in ground_truth:
+                st2["openrouter_limit_remaining"] = ground_truth["limit_remaining"]
+            save_state(st2)
+        or_remaining = st2.get("openrouter_limit_remaining")
+        or_limit = st2.get("openrouter_limit")
+        spent_tracked = float(st2.get("spent_usd") or 0.0)
+        lines = ["\U0001f4b0 Budget:"]
+        if or_remaining is not None:
+            lines.append(f"  OpenRouter remaining: ${float(or_remaining):.2f}")
+        if or_limit is not None:
+            lines.append(f"  OpenRouter limit: ${float(or_limit):.2f}")
+        lines.append(f"  Session spent (tracked): ${spent_tracked:.2f}")
         breakdown = budget_breakdown(st2)
-        lines = [
-            f"\U0001f4b0 Budget:",
-            f"  Total: ${total:.0f}",
-            f"  Spent: ${spent:.2f}",
-            f"  Remaining: ${remaining:.2f}",
-        ]
         if breakdown:
             sorted_cats = sorted(breakdown.items(), key=lambda x: x[1], reverse=True)
             breakdown_parts = [f"{cat}=${cost:.2f}" for cat, cost in sorted_cats if cost > 0]

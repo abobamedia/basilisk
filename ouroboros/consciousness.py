@@ -159,7 +159,13 @@ class BackgroundConsciousness:
     def _check_budget(self) -> bool:
         """Check if background consciousness is within its budget allocation."""
         try:
-            total_budget = float(os.environ.get("TOTAL_BUDGET", "1"))
+            from supervisor.state import load_state
+            st = load_state()
+            or_limit = st.get("openrouter_limit")
+            if or_limit is not None:
+                total_budget = float(or_limit)
+            else:
+                total_budget = float(os.environ.get("TOTAL_BUDGET", "0"))
             if total_budget <= 0:
                 return True
             max_bg = total_budget * (self._bg_budget_pct / 100.0)

@@ -264,39 +264,44 @@ class OuroborosAgent:
             return {"status": "error", "error": str(e)}, 0
 
     def _check_budget(self) -> Tuple[dict, int]:
-        """Check budget remaining with warning thresholds."""
+        """Check budget remaining with warning thresholds (OpenRouter SSOT)."""
         try:
             state_path = self.env.drive_path("state") / "state.json"
             state_data = json.loads(read_text(state_path))
-            total_budget_str = os.environ.get("TOTAL_BUDGET", "")
 
-            # Handle unset or zero budget gracefully
-            if not total_budget_str or float(total_budget_str) == 0:
-                return {"status": "unconfigured"}, 0
+            or_remaining = state_data.get("openrouter_limit_remaining")
+            if or_remaining is not None:
+                remaining = float(or_remaining)
+                total = float(state_data.get("openrouter_limit") or remaining)
+                spent = total - remaining
             else:
-                total_budget = float(total_budget_str)
+                # Fallback before first OpenRouter API call
+                total_budget_str = os.environ.get("TOTAL_BUDGET", "0")
+                total = float(total_budget_str)
+                if total <= 0:
+                    return {"status": "unconfigured"}, 0
                 spent = float(state_data.get("spent_usd", 0))
-                remaining = max(0, total_budget - spent)
+                remaining = max(0, total - spent)
 
-                if remaining < 10:
-                    status = "emergency"
-                    issues = 1
-                elif remaining < 50:
-                    status = "critical"
-                    issues = 1
-                elif remaining < 100:
-                    status = "warning"
-                    issues = 0
-                else:
-                    status = "ok"
-                    issues = 0
+            if remaining < 10:
+                status = "emergency"
+                issues = 1
+            elif remaining < 50:
+                status = "critical"
+                issues = 1
+            elif remaining < 100:
+                status = "warning"
+                issues = 0
+            else:
+                status = "ok"
+                issues = 0
 
-                return {
-                    "status": status,
-                    "remaining_usd": round(remaining, 2),
-                    "total_usd": total_budget,
-                    "spent_usd": round(spent, 2),
-                }, issues
+            return {
+                "status": status,
+                "remaining_usd": round(remaining, 2),
+                "total_usd": round(total, 2),
+                "spent_usd": round(spent, 2),
+            }, issues
         except Exception as e:
             return {"status": "error", "error": str(e)}, 0
 
@@ -382,15 +387,20 @@ class OuroborosAgent:
                 log.warning("Failed to log context soft cap trim event", exc_info=True)
                 pass
 
-        # Read budget remaining for cost guard
+        # Read budget remaining for cost guard (OpenRouter limit_remaining is SSOT)
         budget_remaining = None
         try:
             state_path = self.env.drive_path("state") / "state.json"
             state_data = json.loads(read_text(state_path))
-            total_budget = float(os.environ.get("TOTAL_BUDGET", "1"))
-            spent = float(state_data.get("spent_usd", 0))
-            if total_budget > 0:
-                budget_remaining = max(0, total_budget - spent)
+            or_remaining = state_data.get("openrouter_limit_remaining")
+            if or_remaining is not None:
+                budget_remaining = float(or_remaining)
+            else:
+                # Fallback before first OpenRouter API call
+                total_budget = float(os.environ.get("TOTAL_BUDGET", "0"))
+                spent = float(state_data.get("spent_usd", 0))
+                if total_budget > 0:
+                    budget_remaining = max(0, total_budget - spent)
         except Exception:
             pass
 

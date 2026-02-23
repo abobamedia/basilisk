@@ -71,9 +71,16 @@ def _build_runtime_section(env: Any, task: Dict[str, Any]) -> str:
     try:
         state_json = _safe_read(env.drive_path("state/state.json"), fallback="{}")
         state_data = json.loads(state_json)
-        spent_usd = float(state_data.get("spent_usd", 0))
-        total_usd = float(os.environ.get("TOTAL_BUDGET", "1"))
-        remaining_usd = total_usd - spent_usd
+        or_remaining = state_data.get("openrouter_limit_remaining")
+        if or_remaining is not None:
+            remaining_usd = float(or_remaining)
+            total_usd = float(state_data.get("openrouter_limit") or remaining_usd)
+            spent_usd = total_usd - remaining_usd
+        else:
+            # Fallback if OpenRouter API hasn't been called yet
+            spent_usd = float(state_data.get("spent_usd", 0))
+            total_usd = float(os.environ.get("TOTAL_BUDGET", "0"))
+            remaining_usd = max(0, total_usd - spent_usd) if total_usd > 0 else None
         budget_info = {"total_usd": total_usd, "spent_usd": spent_usd, "remaining_usd": remaining_usd}
     except Exception:
         log.debug("Failed to calculate budget info for context", exc_info=True)
@@ -182,17 +189,21 @@ def _build_health_invariants(env: Any) -> str:
     except Exception:
         pass
 
-    # 2. Budget drift
+    # 2. Budget remaining (OpenRouter ground truth)
     try:
         state_json = read_text(env.drive_path("state/state.json"))
         state_data = json.loads(state_json)
-        if state_data.get("budget_drift_alert"):
-            drift_pct = state_data.get("budget_drift_pct", 0)
-            our = state_data.get("spent_usd", 0)
-            theirs = state_data.get("openrouter_total_usd", 0)
-            checks.append(f"WARNING: BUDGET DRIFT {drift_pct:.1f}% — tracked=${our:.2f} vs OpenRouter=${theirs:.2f}")
+        or_remaining = state_data.get("openrouter_limit_remaining")
+        if or_remaining is not None:
+            remaining = float(or_remaining)
+            if remaining < 10:
+                checks.append(f"CRITICAL: LOW BUDGET — OpenRouter remaining=${remaining:.2f}")
+            elif remaining < 50:
+                checks.append(f"WARNING: LOW BUDGET — OpenRouter remaining=${remaining:.2f}")
+            else:
+                checks.append(f"OK: budget remaining=${remaining:.2f}")
         else:
-            checks.append("OK: budget drift within tolerance")
+            checks.append("OK: budget (OpenRouter limit not yet fetched)")
     except Exception:
         pass
 

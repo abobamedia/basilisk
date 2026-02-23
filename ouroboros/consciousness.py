@@ -179,6 +179,7 @@ class BackgroundConsciousness:
 
     def _think(self) -> None:
         """One thinking cycle: build context, call LLM, execute tools iteratively."""
+        self._maybe_schedule_arch_review()
         context = self._build_context()
         model = self._model
 
@@ -486,3 +487,33 @@ class BackgroundConsciousness:
         })
 
         return result_str
+
+    # -------------------------------------------------------------------
+    # Architecture review scheduling
+    # -------------------------------------------------------------------
+
+    def _maybe_schedule_arch_review(self) -> None:
+        """Check if it's time for a daily architecture review and inject observation if so."""
+        try:
+            from ouroboros.arch_review import get_block, is_review_due, advance_index
+            from supervisor.state import load_state, save_state
+
+            st = load_state()
+            last_at = st.get("arch_review_last_at", "")
+            current_index = int(st.get("arch_review_index", 0))
+
+            if not is_review_due(last_at):
+                return
+
+            block = get_block(current_index)
+            st["arch_review_last_at"] = utc_now_iso()
+            st["arch_review_index"] = advance_index(current_index)
+            save_state(st)
+            self.inject_observation(
+                f"ARCH REVIEW DUE: Schedule a daily architecture review task for block {current_index}: '{block['name']}'. "
+                f"Use schedule_task tool. Task description: Read the relevant code files, analyze for complexity/simplicity violations per BIBLE.md, "
+                f"identify ONE specific improvement if any, report findings to user via send_owner_message (2-3 sentences max). "
+                f"Do NOT rewrite everything."
+            )
+        except Exception as e:
+            log.warning("Failed to check arch review schedule: %s", e)

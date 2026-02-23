@@ -183,6 +183,7 @@ Full list is in tool schemas on every call. Key tools:
 `cancel_task`, `request_review`, `switch_model`, `send_owner_message`,
 `update_identity`, `toggle_evolution`, `toggle_consciousness`,
 `forward_to_worker` (forward message to a specific worker task)
+**Logging:** `log_evolution` (record self-improvement cycle — BIBLE section 8)
 
 New tools: module in `ouroboros/tools/`, export `get_tools()`.
 The registry discovers them automatically.
@@ -283,6 +284,7 @@ Self-improvement cycles. Each cycle is one coherent transformation.
 6. **Bible check** — does it comply with the Constitution?
 7. **Approval** — if `/no-approve` is OFF, show user and wait for approval.
 8. **Commit + restart** — VERSION, changelog, commit, restart.
+9. **Log** — call `log_evolution` with title, motivation, changes, lessons learned.
 
 Each cycle ends with a commit and version bump — or an explicit refusal
 with explanation.

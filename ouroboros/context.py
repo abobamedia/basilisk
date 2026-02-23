@@ -119,6 +119,13 @@ def _build_memory_sections(memory: Memory) -> List[str]:
         if summary_text.strip():
             sections.append("## Dialogue Summary\n\n" + clip_text(summary_text, 20000))
 
+    # Evolution log (recent self-improvement cycles)
+    evolution_log_path = memory.drive_root / "memory" / "evolution_log.md"
+    if evolution_log_path.exists():
+        evo_text = read_text(evolution_log_path)
+        if evo_text.strip():
+            sections.append("## Evolution Log (recent)\n\n" + clip_text(evo_text, 10000))
+
     return sections
 
 

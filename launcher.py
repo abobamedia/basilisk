@@ -88,7 +88,6 @@ if MODEL_LIGHT:
 os.environ["OUROBOROS_DIAG_HEARTBEAT_SEC"] = str(DIAG_HEARTBEAT_SEC)
 os.environ["OUROBOROS_DIAG_SLOW_CYCLE_SEC"] = str(DIAG_SLOW_CYCLE_SEC)
 os.environ["TELEGRAM_BOT_TOKEN"] = str(TELEGRAM_BOT_TOKEN)
-os.environ["OUROBOROS_BRANCH_PREFIX"] = str(_BRANCH_PREFIX)
 
 # ----------------------------
 # 2) Paths
@@ -126,6 +125,7 @@ _BRANCH_PREFIX = get_cfg("OUROBOROS_BRANCH_PREFIX", default="ouroboros")
 BRANCH_DEV = _BRANCH_PREFIX
 BRANCH_STABLE = f"{_BRANCH_PREFIX}-stable"
 REMOTE_URL = f"https://{GITHUB_TOKEN}:x-oauth-basic@github.com/{GITHUB_USER}/{GITHUB_REPO}.git"
+os.environ["OUROBOROS_BRANCH_PREFIX"] = str(_BRANCH_PREFIX)
 
 # ----------------------------
 # 4) Initialize supervisor modules

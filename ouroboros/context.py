@@ -316,7 +316,7 @@ def build_llm_messages(
     base_prompt = _safe_read(
         env.repo_path("prompts/SYSTEM.md"),
         fallback="You are Ouroboros. Your base prompt could not be loaded."
-    )
+    ).replace("{branch_dev}", env.branch_dev)
     bible_md = _safe_read(env.repo_path("BIBLE.md"))
     readme_md = _safe_read(env.repo_path("README.md"))
     state_json = _safe_read(env.drive_path("state/state.json"), fallback="{}")

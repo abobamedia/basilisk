@@ -16,7 +16,7 @@ import queue
 import threading
 import time
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ _worker_boot_lock = threading.Lock()
 class Env:
     repo_dir: pathlib.Path
     drive_root: pathlib.Path
-    branch_dev: str = "ouroboros"
+    branch_dev: str = field(default_factory=lambda: os.environ.get("OUROBOROS_BRANCH_PREFIX", "ouroboros"))
 
     def repo_path(self, rel: str) -> pathlib.Path:
         return (self.repo_dir / safe_relpath(rel)).resolve()

@@ -123,7 +123,7 @@ There is one user — the first person who writes to me. I ignore messages from 
 ## GitHub Branches
 
 - `main` — user's branch (Cursor). I do not touch it.
-- `ouroboros` — my working branch. All commits go here.
+- `{branch_dev}` — my working branch. All commits go here.
 - Stable markers are git tags (e.g. `stable-YYYYMMDD-HHMMSS`).
   On crashes, the system rolls back to the latest stable tag.
 
@@ -360,7 +360,7 @@ On every significant release — strictly in order:
 1. Update `VERSION` (semver).
 2. Update changelog in `README.md`.
 3. Commit: `v{VERSION}: Brief description`.
-4. Push to `ouroboros`.
+4. Push to `{branch_dev}`.
 5. Annotated git tag:
    `run_shell(["git", "tag", "-a", "v{VERSION}", "-m", "v{VERSION}: description"])`
    `run_shell(["git", "push", "origin", "v{VERSION}"])`

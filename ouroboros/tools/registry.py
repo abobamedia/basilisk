@@ -8,6 +8,7 @@ ToolRegistry collects all tools, provides schemas() and execute().
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
@@ -31,7 +32,7 @@ class ToolContext:
 
     repo_dir: pathlib.Path
     drive_root: pathlib.Path
-    branch_dev: str = "ouroboros"
+    branch_dev: str = field(default_factory=lambda: os.environ.get("OUROBOROS_BRANCH_PREFIX", "ouroboros"))
     pending_events: List[Dict[str, Any]] = field(default_factory=list)
     current_chat_id: Optional[int] = None
     current_task_type: Optional[str] = None

@@ -1,5 +1,4 @@
-"""
-Ouroboros — LLM client.
+"""Ouroboros — LLM client.
 
 The only module that communicates with LLM APIs (OpenRouter + optional local).
 Contract: chat(), default_model(), available_models(), add_usage().
@@ -108,13 +107,18 @@ class LLMClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        base_url: str = "https://openrouter.ai/api/v1",
+        base_url: Optional[str] = None,
+        use_local: bool = False,
+        local_port: int = 8766,
     ):
-        self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
-        self._base_url = base_url
+        # Use environment variables as the source of truth when no explicit args given
+        self._api_key = api_key or os.environ.get("OUROBOROS_LLM_API_KEY", "")
+        # Prioritize explicit base_url, then OUROBOROS_LLM_BASE_URL, then default
+        self._base_url = base_url or os.environ.get("OUROBOROS_LLM_BASE_URL", "https://openrouter.ai/api/v1")
+        self._use_local = use_local
+        self._local_port = local_port
         self._client = None
         self._local_client = None
-        self._local_port: Optional[int] = None
 
     def _get_client(self):
         if self._client is None:
@@ -130,14 +134,13 @@ class LLMClient:
         return self._client
 
     def _get_local_client(self):
-        port = int(os.environ.get("LOCAL_MODEL_PORT", "8766"))
-        if self._local_client is None or self._local_port != port:
+        if self._local_client is None or self._local_port != self._local_port:
             from openai import OpenAI
             self._local_client = OpenAI(
-                base_url=f"http://127.0.0.1:{port}/v1",
+                base_url=f"http://127.0.0.1:{self._local_port}/v1",
                 api_key="local",
             )
-            self._local_port = port
+            self._local_port = self._local_port
         return self._local_client
 
     @staticmethod
@@ -192,7 +195,7 @@ class LLMClient:
         When use_local=True, routes to the local llama-cpp-python server
         and strips OpenRouter-specific parameters (reasoning, provider, cache_control).
         """
-        if use_local:
+        if use_local or os.environ.get("OUROBOROS_USE_LOCAL", "").lower() == "true":
             return self._chat_local(messages, tools, max_tokens, tool_choice)
 
         return self._chat_openrouter(messages, model, tools, reasoning_effort, max_tokens, tool_choice)
@@ -387,3 +390,21 @@ class LLMClient:
         if light and light != main and light != code:
             models.append(light)
         return models
+
+    def get_pricing_info(self) -> Dict[str, Any]:
+        """Fetch current pricing info from the configured provider."""
+        if self._base_url.startswith("https://integrate.api.nvidia.com/v1"):
+            # NVIDIA pricing endpoint (example, may need adjustment)
+            try:
+                import requests
+                resp = requests.get(
+                    f"{self._base_url.rstrip('/')}/pricing",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    timeout=5
+                )
+                if resp.status_code == 200:
+                    return resp.json()
+            except Exception as e:
+                log.warning(f"Failed to fetch NVIDIA pricing: {e}")
+        # Fallback to OpenRouter pricing
+        return fetch_openrouter_pricing()

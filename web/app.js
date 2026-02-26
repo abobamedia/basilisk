@@ -381,6 +381,7 @@ function initSettings() {
                 <div class="form-row"><div class="form-field"><label>OpenRouter API Key</label><input id="s-openrouter" type="password" placeholder="sk-or-..."></div></div>
                 <div class="form-row"><div class="form-field"><label>OpenAI API Key (optional)</label><input id="s-openai" type="password"></div></div>
                 <div class="form-row"><div class="form-field"><label>Anthropic API Key (optional)</label><input id="s-anthropic" type="password"></div></div>
+                <div class="form-row"><div class="form-field"><label>NVIDIA API Key (optional)</label><input id="s-nvidia" type="password" placeholder="nvapi-..."></div></div>
             </div>
             <div class="divider"></div>
             <div class="form-section">
@@ -410,19 +411,19 @@ function initSettings() {
                 <h3>Models</h3>
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-field"><label>Main Model</label><input id="s-model" value="anthropic/claude-sonnet-4.6" style="width:250px"></div>
-                    <label class="local-toggle"><input type="checkbox" id="s-local-main" disabled> Local</label>
+                    <div class="form-field"><label>Provider</label><select id="s-provider-main" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="local">Local Model</option></select></div>
                 </div>
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-field"><label>Code Model</label><input id="s-model-code" value="anthropic/claude-sonnet-4.6" style="width:250px"></div>
-                    <label class="local-toggle"><input type="checkbox" id="s-local-code" disabled> Local</label>
+                    <div class="form-field"><label>Provider</label><select id="s-provider-code" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="local">Local Model</option></select></div>
                 </div>
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-field"><label>Light Model</label><input id="s-model-light" value="google/gemini-3-flash-preview" style="width:250px"></div>
-                    <label class="local-toggle"><input type="checkbox" id="s-local-light" disabled> Local</label>
+                    <div class="form-field"><label>Provider</label><select id="s-provider-light" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="local">Local Model</option></select></div>
                 </div>
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-field"><label>Fallback Model</label><input id="s-model-fallback" value="google/gemini-3-flash-preview" style="width:250px"></div>
-                    <label class="local-toggle"><input type="checkbox" id="s-local-fallback" disabled> Local</label>
+                    <div class="form-field"><label>Provider</label><select id="s-provider-fallback" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="local">Local Model</option></select></div>
                 </div>
                 <div class="form-row">
                     <div class="form-field"><label>Claude Code Model</label><input id="s-claude-code-model" value="sonnet" placeholder="sonnet, opus, or full name" style="width:250px"></div>
@@ -465,11 +466,23 @@ function initSettings() {
         if (s.OPENROUTER_API_KEY) document.getElementById('s-openrouter').value = s.OPENROUTER_API_KEY;
         if (s.OPENAI_API_KEY) document.getElementById('s-openai').value = s.OPENAI_API_KEY;
         if (s.ANTHROPIC_API_KEY) document.getElementById('s-anthropic').value = s.ANTHROPIC_API_KEY;
+        if (s.NVIDIA_API_KEY) document.getElementById('s-nvidia').value = s.NVIDIA_API_KEY;
         if (s.OUROBOROS_MODEL) document.getElementById('s-model').value = s.OUROBOROS_MODEL;
         if (s.OUROBOROS_MODEL_CODE) document.getElementById('s-model-code').value = s.OUROBOROS_MODEL_CODE;
         if (s.OUROBOROS_MODEL_LIGHT) document.getElementById('s-model-light').value = s.OUROBOROS_MODEL_LIGHT;
         if (s.OUROBOROS_MODEL_FALLBACK) document.getElementById('s-model-fallback').value = s.OUROBOROS_MODEL_FALLBACK;
         if (s.CLAUDE_CODE_MODEL) document.getElementById('s-claude-code-model').value = s.CLAUDE_CODE_MODEL;
+        // Provider dropdowns (with backward compat from USE_LOCAL_*)
+        ['main', 'code', 'light', 'fallback'].forEach(slot => {
+            const key = 'PROVIDER_' + slot.toUpperCase();
+            const localKey = 'USE_LOCAL_' + slot.toUpperCase();
+            const el = document.getElementById('s-provider-' + slot);
+            if (s[key]) {
+                el.value = s[key];
+            } else if (s[localKey] === true || s[localKey] === 'True') {
+                el.value = 'local';
+            }
+        });
         if (s.OUROBOROS_MAX_WORKERS) document.getElementById('s-workers').value = s.OUROBOROS_MAX_WORKERS;
         if (s.TOTAL_BUDGET) document.getElementById('s-budget').value = s.TOTAL_BUDGET;
         if (s.OUROBOROS_SOFT_TIMEOUT_SEC) document.getElementById('s-soft-timeout').value = s.OUROBOROS_SOFT_TIMEOUT_SEC;
@@ -482,10 +495,6 @@ function initSettings() {
         if (s.LOCAL_MODEL_N_GPU_LAYERS != null) document.getElementById('s-local-gpu-layers').value = s.LOCAL_MODEL_N_GPU_LAYERS;
         if (s.LOCAL_MODEL_CONTEXT_LENGTH) document.getElementById('s-local-ctx').value = s.LOCAL_MODEL_CONTEXT_LENGTH;
         if (s.LOCAL_MODEL_CHAT_FORMAT) document.getElementById('s-local-chat-format').value = s.LOCAL_MODEL_CHAT_FORMAT;
-        document.getElementById('s-local-main').checked = s.USE_LOCAL_MAIN === true || s.USE_LOCAL_MAIN === 'True';
-        document.getElementById('s-local-code').checked = s.USE_LOCAL_CODE === true || s.USE_LOCAL_CODE === 'True';
-        document.getElementById('s-local-light').checked = s.USE_LOCAL_LIGHT === true || s.USE_LOCAL_LIGHT === 'True';
-        document.getElementById('s-local-fallback').checked = s.USE_LOCAL_FALLBACK === true || s.USE_LOCAL_FALLBACK === 'True';
     }).catch(() => {});
 
     let localStatusInterval = null;
@@ -502,9 +511,6 @@ function initSettings() {
             el.style.color = isReady ? 'var(--green)' : d.status === 'error' ? 'var(--red)' : 'var(--text-secondary)';
             document.getElementById('btn-local-stop').style.opacity = isReady ? '1' : '0.5';
             document.getElementById('btn-local-test').style.opacity = isReady ? '1' : '0.5';
-            ['s-local-main', 's-local-code', 's-local-light', 's-local-fallback'].forEach(id => {
-                document.getElementById(id).disabled = !isReady;
-            });
         }).catch(() => {});
     }
     updateLocalStatus();
@@ -562,6 +568,10 @@ function initSettings() {
             OUROBOROS_MODEL_LIGHT: document.getElementById('s-model-light').value,
             OUROBOROS_MODEL_FALLBACK: document.getElementById('s-model-fallback').value,
             CLAUDE_CODE_MODEL: document.getElementById('s-claude-code-model').value || 'sonnet',
+            PROVIDER_MAIN: document.getElementById('s-provider-main').value,
+            PROVIDER_CODE: document.getElementById('s-provider-code').value,
+            PROVIDER_LIGHT: document.getElementById('s-provider-light').value,
+            PROVIDER_FALLBACK: document.getElementById('s-provider-fallback').value,
             OUROBOROS_MAX_WORKERS: parseInt(document.getElementById('s-workers').value) || 5,
             TOTAL_BUDGET: parseFloat(document.getElementById('s-budget').value) || 10,
             OUROBOROS_SOFT_TIMEOUT_SEC: parseInt(document.getElementById('s-soft-timeout').value) || 600,
@@ -573,10 +583,11 @@ function initSettings() {
             LOCAL_MODEL_N_GPU_LAYERS: parseInt(document.getElementById('s-local-gpu-layers').value),
             LOCAL_MODEL_CONTEXT_LENGTH: parseInt(document.getElementById('s-local-ctx').value) || 16384,
             LOCAL_MODEL_CHAT_FORMAT: document.getElementById('s-local-chat-format').value,
-            USE_LOCAL_MAIN: document.getElementById('s-local-main').checked,
-            USE_LOCAL_CODE: document.getElementById('s-local-code').checked,
-            USE_LOCAL_LIGHT: document.getElementById('s-local-light').checked,
-            USE_LOCAL_FALLBACK: document.getElementById('s-local-fallback').checked,
+            // Backward compat: set USE_LOCAL_* based on provider dropdown
+            USE_LOCAL_MAIN: document.getElementById('s-provider-main').value === 'local',
+            USE_LOCAL_CODE: document.getElementById('s-provider-code').value === 'local',
+            USE_LOCAL_LIGHT: document.getElementById('s-provider-light').value === 'local',
+            USE_LOCAL_FALLBACK: document.getElementById('s-provider-fallback').value === 'local',
         };
         const orKey = document.getElementById('s-openrouter').value;
         if (orKey && !orKey.includes('...')) body.OPENROUTER_API_KEY = orKey;
@@ -584,6 +595,8 @@ function initSettings() {
         if (oaiKey && !oaiKey.includes('...')) body.OPENAI_API_KEY = oaiKey;
         const antKey = document.getElementById('s-anthropic').value;
         if (antKey && !antKey.includes('...')) body.ANTHROPIC_API_KEY = antKey;
+        const nvKey = document.getElementById('s-nvidia').value;
+        if (nvKey && !nvKey.includes('...')) body.NVIDIA_API_KEY = nvKey;
         const ghToken = document.getElementById('s-gh-token').value;
         if (ghToken && !ghToken.includes('...')) body.GITHUB_TOKEN = ghToken;
 

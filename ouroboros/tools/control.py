@@ -178,8 +178,8 @@ def _toggle_consciousness(ctx: ToolContext, action: str = "status") -> str:
     return f"OK: consciousness '{action}' requested."
 
 
-def _switch_model(ctx: ToolContext, model: str = "", effort: str = "") -> str:
-    """LLM-driven model/effort switch (Constitution P3: LLM-first).
+def _switch_model(ctx: ToolContext, model: str = "", effort: str = "", provider: str = "") -> str:
+    """LLM-driven model/effort/provider switch (Constitution P3: LLM-first).
 
     Stored in ToolContext, applied on the next LLM call in the loop.
     """
@@ -191,20 +191,37 @@ def _switch_model(ctx: ToolContext, model: str = "", effort: str = "") -> str:
         if model not in available:
             return f"⚠️ Unknown model: {model}. Available: {', '.join(available)}"
         ctx.active_model_override = model
-        
+
+        # Determine provider for this model from slot config
         import os
-        use_local = False
-        if model == os.environ.get("OUROBOROS_MODEL") and os.environ.get("USE_LOCAL_MAIN", "").lower() in ("true", "1"):
-            use_local = True
-        elif model == os.environ.get("OUROBOROS_MODEL_CODE") and os.environ.get("USE_LOCAL_CODE", "").lower() in ("true", "1"):
-            use_local = True
-        elif model == os.environ.get("OUROBOROS_MODEL_LIGHT") and os.environ.get("USE_LOCAL_LIGHT", "").lower() in ("true", "1"):
-            use_local = True
-        elif model == os.environ.get("OUROBOROS_MODEL_FALLBACK") and os.environ.get("USE_LOCAL_FALLBACK", "").lower() in ("true", "1"):
-            use_local = True
-            
-        ctx.active_use_local_override = use_local
-        changes.append(f"model={model}{' (local)' if use_local else ''}")
+        slot_provider = None
+        slot_map = [
+            ("MAIN", "OUROBOROS_MODEL"),
+            ("CODE", "OUROBOROS_MODEL_CODE"),
+            ("LIGHT", "OUROBOROS_MODEL_LIGHT"),
+            ("FALLBACK", "OUROBOROS_MODEL_FALLBACK"),
+        ]
+        for slot_name, env_key in slot_map:
+            if model == os.environ.get(env_key):
+                slot_provider = os.environ.get(f"PROVIDER_{slot_name}", "openrouter")
+                break
+
+        # Explicit provider param overrides slot config
+        if provider:
+            slot_provider = provider
+
+        if slot_provider:
+            ctx.active_provider_override = slot_provider
+            ctx.active_use_local_override = (slot_provider == "local")
+            changes.append(f"model={model} (via {slot_provider})")
+        else:
+            changes.append(f"model={model}")
+
+    elif provider:
+        # Provider-only switch (no model change)
+        ctx.active_provider_override = provider
+        ctx.active_use_local_override = (provider == "local")
+        changes.append(f"provider={provider}")
 
     if effort:
         normalized = normalize_reasoning_effort(effort, default="medium")
@@ -325,13 +342,15 @@ def get_tools() -> List[ToolEntry]:
         }, _toggle_consciousness),
         ToolEntry("switch_model", {
             "name": "switch_model",
-            "description": "Switch to a different LLM model or reasoning effort level. "
+            "description": "Switch to a different LLM model, provider, or reasoning effort level. "
                            "Use when you need more power (complex code, deep reasoning) "
                            "or want to save budget (simple tasks). Takes effect on next round.",
             "parameters": {"type": "object", "properties": {
                 "model": {"type": "string", "description": "Model name (e.g. anthropic/claude-sonnet-4). Leave empty to keep current."},
                 "effort": {"type": "string", "enum": ["low", "medium", "high", "xhigh"],
                            "description": "Reasoning effort level. Leave empty to keep current."},
+                "provider": {"type": "string", "enum": ["openrouter", "nvidia", "openai", "local"],
+                             "description": "LLM provider. Leave empty to use the slot's configured provider."},
             }, "required": []},
         }, _switch_model),
         ToolEntry("get_task_result", {

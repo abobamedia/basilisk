@@ -62,6 +62,15 @@ def _get_pricing() -> Dict[str, Tuple[float, float, float]]:
     with _pricing_lock:
         if _cached_pricing is None:
             _cached_pricing = dict(_MODEL_PRICING_STATIC)
+            # Merge static pricing from all provider descriptors
+            try:
+                from ouroboros.providers import PROVIDERS
+                for p in PROVIDERS.values():
+                    for model_id, prices in p.pricing.items():
+                        if model_id not in _cached_pricing:
+                            _cached_pricing[model_id] = prices
+            except Exception:
+                pass
         if _pricing_fetched:
             return _cached_pricing
 
@@ -406,6 +415,7 @@ def _check_budget_limits(
     event_queue: Optional[queue.Queue],
     llm_trace: Dict[str, Any],
     task_type: str = "task",
+    provider_name: Optional[str] = None,
 ) -> Optional[Tuple[str, Dict[str, Any], Dict[str, Any]]]:
     """
     Check budget limits and handle budget overrun.
@@ -433,7 +443,8 @@ def _check_budget_limits(
         try:
             final_msg, final_cost = _call_llm_with_retry(
                 llm, messages, active_model, None, active_effort,
-                max_retries, drive_logs, task_id, round_idx, event_queue, accumulated_usage, task_type
+                max_retries, drive_logs, task_id, round_idx, event_queue, accumulated_usage, task_type,
+                provider_name=provider_name,
             )
             if final_msg:
                 return (final_msg.get("content") or finish_reason), accumulated_usage, llm_trace
@@ -620,7 +631,10 @@ def run_llm_loop(
     # LLM-first: single default model, LLM switches via tool if needed
     active_model = llm.default_model()
     active_effort = initial_effort
-    active_use_local = os.environ.get("USE_LOCAL_MAIN", "").lower() in ("true", "1")
+    active_provider = os.environ.get("PROVIDER_MAIN", "openrouter")
+    active_use_local = active_provider == "local" or os.environ.get("USE_LOCAL_MAIN", "").lower() in ("true", "1")
+    if active_use_local:
+        active_provider = "local"
 
     llm_trace: Dict[str, Any] = {"assistant_notes": [], "tool_calls": []}
     accumulated_usage: Dict[str, Any] = {}
@@ -660,7 +674,7 @@ def run_llm_loop(
                     final_msg, final_cost = _call_llm_with_retry(
                         llm, messages, active_model, None, active_effort,
                         max_retries, drive_logs, task_id, round_idx, event_queue, accumulated_usage, task_type,
-                        use_local=active_use_local,
+                        use_local=active_use_local, provider_name=active_provider,
                     )
                     if final_msg:
                         return (final_msg.get("content") or finish_reason), accumulated_usage, llm_trace
@@ -672,13 +686,18 @@ def run_llm_loop(
             # Soft self-check reminder every 50 rounds (LLM-first: agent decides, not code)
             _maybe_inject_self_check(round_idx, MAX_ROUNDS, messages, accumulated_usage, emit_progress)
 
-            # Apply LLM-driven model/effort switch (via switch_model tool)
+            # Apply LLM-driven model/effort/provider switch (via switch_model tool)
             ctx = tools._ctx
             if ctx.active_model_override:
                 active_model = ctx.active_model_override
                 ctx.active_model_override = None
-            if getattr(ctx, "active_use_local_override", None) is not None:
+            if getattr(ctx, "active_provider_override", None) is not None:
+                active_provider = ctx.active_provider_override
+                active_use_local = (active_provider == "local")
+                ctx.active_provider_override = None
+            elif getattr(ctx, "active_use_local_override", None) is not None:
                 active_use_local = ctx.active_use_local_override
+                active_provider = "local" if active_use_local else active_provider
                 ctx.active_use_local_override = None
             if ctx.active_effort_override:
                 active_effort = normalize_reasoning_effort(ctx.active_effort_override, default=active_effort)
@@ -707,28 +726,32 @@ def run_llm_loop(
             msg, cost = _call_llm_with_retry(
                 llm, messages, active_model, tool_schemas, active_effort,
                 max_retries, drive_logs, task_id, round_idx, event_queue, accumulated_usage, task_type,
-                use_local=active_use_local,
+                use_local=active_use_local, provider_name=active_provider,
             )
 
             # Single fallback model (Bible P3: configurable, not hardcoded)
             if msg is None:
                 fallback_model = os.environ.get("OUROBOROS_MODEL_FALLBACK", "").strip()
                 if not fallback_model or fallback_model == active_model:
+                    provider_tag = f" via {active_provider}" if active_provider != "openrouter" else ""
                     local_tag = " (local)" if active_use_local else ""
                     return (
-                        f"⚠️ Failed to get a response from model {active_model}{local_tag} after {max_retries} attempts. "
+                        f"⚠️ Failed to get a response from model {active_model}{local_tag}{provider_tag} after {max_retries} attempts. "
                         f"No viable fallback model configured. "
                         f"If background consciousness is running, it will retry when the provider recovers."
                     ), accumulated_usage, llm_trace
 
-                fallback_use_local = os.environ.get("USE_LOCAL_FALLBACK", "").lower() in ("true", "1")
-                primary_tag = " (local)" if active_use_local else ""
-                fallback_tag = " (local)" if fallback_use_local else ""
+                fallback_provider = os.environ.get("PROVIDER_FALLBACK", "openrouter")
+                fallback_use_local = fallback_provider == "local" or os.environ.get("USE_LOCAL_FALLBACK", "").lower() in ("true", "1")
+                if fallback_use_local:
+                    fallback_provider = "local"
+                primary_tag = f" ({active_provider})" if active_provider != "openrouter" else ""
+                fallback_tag = f" ({fallback_provider})" if fallback_provider != "openrouter" else ""
                 emit_progress(f"⚡ Fallback: {active_model}{primary_tag} → {fallback_model}{fallback_tag} after empty response")
                 msg, fallback_cost = _call_llm_with_retry(
                     llm, messages, fallback_model, tool_schemas, active_effort,
                     max_retries, drive_logs, task_id, round_idx, event_queue, accumulated_usage, task_type,
-                    use_local=fallback_use_local,
+                    use_local=fallback_use_local, provider_name=fallback_provider,
                 )
 
                 if msg is None:
@@ -761,7 +784,8 @@ def run_llm_loop(
             budget_result = _check_budget_limits(
                 budget_remaining_usd, accumulated_usage, round_idx, messages,
                 llm, active_model, active_effort, max_retries, drive_logs,
-                task_id, event_queue, llm_trace, task_type
+                task_id, event_queue, llm_trace, task_type,
+                provider_name=active_provider,
             )
             if budget_result is not None:
                 return budget_result
@@ -861,6 +885,7 @@ def _call_llm_with_retry(
     accumulated_usage: Dict[str, Any],
     task_type: str = "",
     use_local: bool = False,
+    provider_name: Optional[str] = None,
 ) -> Tuple[Optional[Dict[str, Any]], float]:
     """
     Call LLM with retry logic, usage tracking, and event emission.
@@ -876,6 +901,8 @@ def _call_llm_with_retry(
         try:
             kwargs = {"messages": messages, "model": model, "reasoning_effort": effort,
                       "use_local": use_local}
+            if provider_name:
+                kwargs["provider_name"] = provider_name
             if tools:
                 kwargs["tools"] = tools
             resp_msg, usage = llm.chat(**kwargs)

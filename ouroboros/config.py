@@ -39,6 +39,12 @@ SETTINGS_DEFAULTS = {
     "OPENROUTER_API_KEY": "",
     "OPENAI_API_KEY": "",
     "ANTHROPIC_API_KEY": "",
+    "NVIDIA_API_KEY": "",
+    # Per-slot provider: "openrouter", "nvidia", "openai", "local"
+    "PROVIDER_MAIN": "openrouter",
+    "PROVIDER_CODE": "openrouter",
+    "PROVIDER_LIGHT": "openrouter",
+    "PROVIDER_FALLBACK": "openrouter",
     "OUROBOROS_MODEL": "anthropic/claude-sonnet-4.6",
     "OUROBOROS_MODEL_CODE": "anthropic/claude-sonnet-4.6",
     "OUROBOROS_MODEL_LIGHT": "google/gemini-3-flash-preview",
@@ -153,7 +159,7 @@ def save_settings(settings: dict) -> None:
 def apply_settings_to_env(settings: dict) -> None:
     """Push settings into environment variables for supervisor modules."""
     env_keys = [
-        "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+        "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NVIDIA_API_KEY",
         "OUROBOROS_MODEL", "OUROBOROS_MODEL_CODE", "OUROBOROS_MODEL_LIGHT",
         "OUROBOROS_MODEL_FALLBACK", "CLAUDE_CODE_MODEL",
         "TOTAL_BUDGET", "GITHUB_TOKEN", "GITHUB_REPO",
@@ -163,6 +169,7 @@ def apply_settings_to_env(settings: dict) -> None:
         "LOCAL_MODEL_PORT", "LOCAL_MODEL_N_GPU_LAYERS", "LOCAL_MODEL_CONTEXT_LENGTH",
         "LOCAL_MODEL_CHAT_FORMAT",
         "USE_LOCAL_MAIN", "USE_LOCAL_CODE", "USE_LOCAL_LIGHT", "USE_LOCAL_FALLBACK",
+        "PROVIDER_MAIN", "PROVIDER_CODE", "PROVIDER_LIGHT", "PROVIDER_FALLBACK",
     ]
     for k in env_keys:
         val = settings.get(k)
@@ -170,6 +177,11 @@ def apply_settings_to_env(settings: dict) -> None:
             os.environ.pop(k, None)
         else:
             os.environ[k] = str(val)
+
+    # Backward compat: USE_LOCAL_* overrides PROVIDER_* to "local"
+    for slot in ("MAIN", "CODE", "LIGHT", "FALLBACK"):
+        if str(settings.get(f"USE_LOCAL_{slot}", "")).lower() in ("true", "1"):
+            os.environ[f"PROVIDER_{slot}"] = "local"
 
 
 # ---------------------------------------------------------------------------

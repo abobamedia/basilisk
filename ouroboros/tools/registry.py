@@ -38,10 +38,11 @@ class ToolContext:
     last_push_succeeded: bool = False
     emit_progress_fn: Callable[[str], None] = field(default=lambda _: None)
 
-    # LLM-driven model/effort switch (set by switch_model tool, read by loop.py)
+    # LLM-driven model/effort/provider switch (set by switch_model tool, read by loop.py)
     active_model_override: Optional[str] = None
     active_effort_override: Optional[str] = None
     active_use_local_override: Optional[bool] = None
+    active_provider_override: Optional[str] = None
 
     # Per-task browser state
     browser_state: BrowserState = field(default_factory=BrowserState)

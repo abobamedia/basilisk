@@ -1,11 +1,13 @@
 """Ouroboros — LLM client.
 
-The only module that communicates with LLM APIs (OpenRouter + optional local).
+The only module that communicates with LLM APIs.
+Supports multiple providers: OpenRouter, NVIDIA NIM, OpenAI, Local.
 Contract: chat(), default_model(), available_models(), add_usage().
 """
 
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import time
@@ -102,7 +104,7 @@ def fetch_openrouter_pricing() -> Dict[str, Tuple[float, float, float]]:
 
 
 class LLMClient:
-    """LLM API wrapper. Routes calls to OpenRouter or a local llama-cpp-python server."""
+    """LLM API wrapper. Routes calls to multiple providers: OpenRouter, NVIDIA, OpenAI, Local."""
 
     def __init__(
         self,
@@ -111,16 +113,51 @@ class LLMClient:
         use_local: bool = False,
         local_port: int = 8766,
     ):
-        # Use environment variables as the source of truth when no explicit args given
+        # Legacy env vars for backward compat
         self._api_key = api_key or os.environ.get("OUROBOROS_LLM_API_KEY", "")
-        # Prioritize explicit base_url, then OUROBOROS_LLM_BASE_URL, then default
         self._base_url = base_url or os.environ.get("OUROBOROS_LLM_BASE_URL", "https://openrouter.ai/api/v1")
         self._use_local = use_local
         self._local_port = local_port
+        # Per-provider client cache: {provider_name: OpenAI}
+        self._clients: Dict[str, Any] = {}
+        # Legacy single-client refs (populated lazily for backward compat)
         self._client = None
         self._local_client = None
 
+    # ------------------------------------------------------------------
+    # Client management
+    # ------------------------------------------------------------------
+
+    def _get_client_for_provider(self, provider_name: str):
+        """Get or create an OpenAI-compatible client for the given provider."""
+        if provider_name in self._clients:
+            return self._clients[provider_name]
+
+        from openai import OpenAI
+        from ouroboros.providers import get_provider, resolve_api_key
+
+        provider = get_provider(provider_name)
+
+        if provider_name == "local":
+            port = int(os.environ.get("LOCAL_MODEL_PORT", str(self._local_port)))
+            base_url = f"http://127.0.0.1:{port}/v1"
+            client = OpenAI(base_url=base_url, api_key="local")
+        else:
+            api_key = resolve_api_key(provider)
+            # Fall back to legacy key if provider-specific key is empty
+            if not api_key:
+                api_key = self._api_key
+            client = OpenAI(
+                base_url=provider.base_url,
+                api_key=api_key,
+                default_headers=provider.default_headers or {},
+            )
+
+        self._clients[provider_name] = client
+        return client
+
     def _get_client(self):
+        """Legacy: get client for the default provider (backward compat)."""
         if self._client is None:
             from openai import OpenAI
             self._client = OpenAI(
@@ -134,19 +171,16 @@ class LLMClient:
         return self._client
 
     def _get_local_client(self):
-        if self._local_client is None or self._local_port != self._local_port:
-            from openai import OpenAI
-            self._local_client = OpenAI(
-                base_url=f"http://127.0.0.1:{self._local_port}/v1",
-                api_key="local",
-            )
-            self._local_port = self._local_port
-        return self._local_client
+        """Legacy: get local model client (backward compat)."""
+        return self._get_client_for_provider("local")
+
+    # ------------------------------------------------------------------
+    # Message helpers
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _strip_cache_control(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Strip cache_control from message content blocks (OpenRouter/Anthropic-only)."""
-        import copy
+        """Strip cache_control from message content blocks."""
         cleaned = copy.deepcopy(messages)
         for msg in cleaned:
             content = msg.get("content")
@@ -156,78 +190,21 @@ class LLMClient:
                         block.pop("cache_control", None)
         return cleaned
 
-    def _fetch_generation_cost(self, generation_id: str) -> Optional[float]:
-        """Fetch cost from OpenRouter Generation API as fallback."""
-        try:
-            import requests
-            url = f"{self._base_url.rstrip('/')}/generation?id={generation_id}"
-            resp = requests.get(url, headers={"Authorization": f"Bearer {self._api_key}"}, timeout=5)
-            if resp.status_code == 200:
-                data = resp.json().get("data") or {}
-                cost = data.get("total_cost") or data.get("usage", {}).get("cost")
-                if cost is not None:
-                    return float(cost)
-            # Generation might not be ready yet — retry once after short delay
-            time.sleep(0.5)
-            resp = requests.get(url, headers={"Authorization": f"Bearer {self._api_key}"}, timeout=5)
-            if resp.status_code == 200:
-                data = resp.json().get("data") or {}
-                cost = data.get("total_cost") or data.get("usage", {}).get("cost")
-                if cost is not None:
-                    return float(cost)
-        except Exception:
-            log.debug("Failed to fetch generation cost from OpenRouter", exc_info=True)
-            pass
-        return None
-
-    def chat(
-        self,
-        messages: List[Dict[str, Any]],
-        model: str,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        reasoning_effort: str = "medium",
-        max_tokens: int = 16384,
-        tool_choice: str = "auto",
-        use_local: bool = False,
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Single LLM call. Returns: (response_message_dict, usage_dict with cost).
-
-        When use_local=True, routes to the local llama-cpp-python server
-        and strips OpenRouter-specific parameters (reasoning, provider, cache_control).
-        """
-        if use_local or os.environ.get("OUROBOROS_USE_LOCAL", "").lower() == "true":
-            return self._chat_local(messages, tools, max_tokens, tool_choice)
-
-        return self._chat_openrouter(messages, model, tools, reasoning_effort, max_tokens, tool_choice)
-
-    def _chat_local(
-        self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]],
-        max_tokens: int,
-        tool_choice: str,
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Send a chat request to the local llama-cpp-python server."""
-        client = self._get_local_client()
-
-        clean_messages = self._strip_cache_control(messages)
-        # Flatten multipart content blocks to plain strings (local server doesn't support arrays)
-        for msg in clean_messages:
+    @staticmethod
+    def _flatten_content(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Flatten multipart content blocks to plain strings."""
+        cleaned = copy.deepcopy(messages)
+        for msg in cleaned:
             content = msg.get("content")
             if isinstance(content, list):
                 msg["content"] = "\n\n".join(
                     b.get("text", "") for b in content
                     if isinstance(b, dict) and b.get("type") == "text"
                 )
+        return cleaned
 
-        clean_tools = None
-        if tools:
-            clean_tools = [
-                {k: v for k, v in t.items() if k != "cache_control"}
-                for t in tools
-            ]
-
-        # Cap max_tokens to fit within the model's context window
+    def _local_max_tokens(self, max_tokens: int) -> int:
+        """Cap max_tokens for local model context window."""
         local_max = min(max_tokens, 2048)
         try:
             from ouroboros.local_model import get_manager
@@ -236,71 +213,47 @@ class LLMClient:
                 local_max = min(max_tokens, max(256, ctx_len // 4))
         except Exception:
             pass
+        return local_max
 
-        kwargs: Dict[str, Any] = {
-            "model": "local-model",
-            "messages": clean_messages,
-            "max_tokens": local_max,
-        }
-        if clean_tools:
-            kwargs["tools"] = clean_tools
-            kwargs["tool_choice"] = tool_choice
+    # ------------------------------------------------------------------
+    # Cost helpers
+    # ------------------------------------------------------------------
 
-        resp = client.chat.completions.create(**kwargs)
-        resp_dict = resp.model_dump()
-        usage = resp_dict.get("usage") or {}
-        choices = resp_dict.get("choices") or [{}]
-        msg = (choices[0] if choices else {}).get("message") or {}
+    def _fetch_generation_cost(self, generation_id: str, provider_name: str = "openrouter") -> Optional[float]:
+        """Fetch cost from OpenRouter Generation API as fallback."""
+        from ouroboros.providers import get_provider, resolve_api_key
+        provider = get_provider(provider_name)
+        api_key = resolve_api_key(provider) or self._api_key
+        base_url = provider.base_url
 
-        usage["cost"] = 0.0
-        return msg, usage
+        try:
+            import requests
+            url = f"{base_url.rstrip('/')}/generation?id={generation_id}"
+            headers = {"Authorization": f"Bearer {api_key}"}
+            resp = requests.get(url, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json().get("data") or {}
+                cost = data.get("total_cost") or data.get("usage", {}).get("cost")
+                if cost is not None:
+                    return float(cost)
+            # Generation might not be ready yet — retry once after short delay
+            time.sleep(0.5)
+            resp = requests.get(url, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json().get("data") or {}
+                cost = data.get("total_cost") or data.get("usage", {}).get("cost")
+                if cost is not None:
+                    return float(cost)
+        except Exception:
+            log.debug("Failed to fetch generation cost", exc_info=True)
+        return None
 
-    def _chat_openrouter(
-        self,
-        messages: List[Dict[str, Any]],
-        model: str,
-        tools: Optional[List[Dict[str, Any]]],
-        reasoning_effort: str,
-        max_tokens: int,
-        tool_choice: str,
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Send a chat request to OpenRouter."""
-        client = self._get_client()
-        effort = normalize_reasoning_effort(reasoning_effort)
+    def _resolve_cost(self, provider_name: str, usage: Dict[str, Any], resp_dict: Dict[str, Any]) -> None:
+        """Resolve cost from provider-specific sources. Mutates usage dict in-place."""
+        from ouroboros.providers import get_provider
+        provider = get_provider(provider_name)
 
-        extra_body: Dict[str, Any] = {
-            "reasoning": {"effort": effort, "exclude": True},
-        }
-
-        # Pin Anthropic models to Anthropic provider for prompt caching
-        if model.startswith("anthropic/"):
-            extra_body["provider"] = {
-                "order": ["Anthropic"],
-                "allow_fallbacks": False,
-                "require_parameters": True,
-            }
-
-        kwargs: Dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "extra_body": extra_body,
-        }
-        if tools:
-            tools_with_cache = [t for t in tools]  # shallow copy
-            if tools_with_cache:
-                last_tool = {**tools_with_cache[-1]}  # copy last tool
-                last_tool["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
-                tools_with_cache[-1] = last_tool
-            kwargs["tools"] = tools_with_cache
-            kwargs["tool_choice"] = tool_choice
-
-        resp = client.chat.completions.create(**kwargs)
-        resp_dict = resp.model_dump()
-        usage = resp_dict.get("usage") or {}
-        choices = resp_dict.get("choices") or [{}]
-        msg = (choices[0] if choices else {}).get("message") or {}
-
+        # Extract cached tokens from nested formats
         if not usage.get("cached_tokens"):
             prompt_details = usage.get("prompt_tokens_details") or {}
             if isinstance(prompt_details, dict) and prompt_details.get("cached_tokens"):
@@ -315,14 +268,169 @@ class LLMClient:
                 if cache_write:
                     usage["cache_write_tokens"] = int(cache_write)
 
-        if not usage.get("cost"):
+        # Provider-specific cost resolution
+        if provider_name == "local":
+            usage["cost"] = 0.0
+        elif provider.supports_generation_cost_api and not usage.get("cost"):
             gen_id = resp_dict.get("id") or ""
             if gen_id:
-                cost = self._fetch_generation_cost(gen_id)
+                cost = self._fetch_generation_cost(gen_id, provider_name)
                 if cost is not None:
                     usage["cost"] = cost
 
+    # ------------------------------------------------------------------
+    # Unified provider chat
+    # ------------------------------------------------------------------
+
+    def _chat_provider(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        tools: Optional[List[Dict[str, Any]]],
+        reasoning_effort: str,
+        max_tokens: int,
+        tool_choice: str,
+        provider_name: str,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Unified chat method that adapts to provider quirks via descriptor flags."""
+        from ouroboros.providers import get_provider
+        provider = get_provider(provider_name)
+        client = self._get_client_for_provider(provider_name)
+
+        # Adapt messages to provider capabilities
+        if provider.requires_content_flattening:
+            clean_messages = self._flatten_content(messages)
+        elif not provider.supports_cache_control:
+            clean_messages = self._strip_cache_control(messages)
+        else:
+            clean_messages = messages
+
+        # Build kwargs
+        kwargs: Dict[str, Any] = {
+            "model": model,
+            "messages": clean_messages,
+            "max_tokens": max_tokens,
+        }
+
+        # Local model: override model name & cap tokens
+        if provider_name == "local":
+            kwargs["model"] = "local-model"
+            kwargs["max_tokens"] = self._local_max_tokens(max_tokens)
+
+        # OpenRouter-specific: reasoning + provider routing
+        if provider.supports_reasoning:
+            effort = normalize_reasoning_effort(reasoning_effort)
+            extra_body: Dict[str, Any] = {
+                "reasoning": {"effort": effort, "exclude": True},
+            }
+            if provider.supports_provider_routing and model.startswith("anthropic/"):
+                extra_body["provider"] = {
+                    "order": ["Anthropic"],
+                    "allow_fallbacks": False,
+                    "require_parameters": True,
+                }
+            kwargs["extra_body"] = extra_body
+
+        # Tools handling
+        if tools:
+            if provider.supports_cache_control:
+                # Add cache_control to last tool (OpenRouter)
+                tools_copy = [t for t in tools]
+                if tools_copy:
+                    last_tool = {**tools_copy[-1]}
+                    last_tool["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+                    tools_copy[-1] = last_tool
+                kwargs["tools"] = tools_copy
+            else:
+                # Strip cache_control from tools
+                kwargs["tools"] = [
+                    {k: v for k, v in t.items() if k != "cache_control"}
+                    for t in tools
+                ]
+            # Clamp tool_choice to supported values
+            if tool_choice in provider.tool_choice_values:
+                kwargs["tool_choice"] = tool_choice
+            else:
+                kwargs["tool_choice"] = "auto"
+
+        resp = client.chat.completions.create(**kwargs)
+        resp_dict = resp.model_dump()
+        usage = resp_dict.get("usage") or {}
+        choices = resp_dict.get("choices") or [{}]
+        msg = (choices[0] if choices else {}).get("message") or {}
+
+        # Resolve cost
+        self._resolve_cost(provider_name, usage, resp_dict)
+
         return msg, usage
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def chat(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        reasoning_effort: str = "medium",
+        max_tokens: int = 16384,
+        tool_choice: str = "auto",
+        use_local: bool = False,
+        provider_name: Optional[str] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Single LLM call. Returns: (response_message_dict, usage_dict with cost).
+
+        Args:
+            provider_name: Explicit provider ("openrouter", "nvidia", "openai", "local").
+                           If None, infers from use_local flag or env vars.
+        """
+        # Determine provider
+        if provider_name:
+            return self._chat_provider(messages, model, tools, reasoning_effort,
+                                       max_tokens, tool_choice, provider_name)
+
+        if use_local or os.environ.get("OUROBOROS_USE_LOCAL", "").lower() == "true":
+            return self._chat_provider(messages, model, tools, reasoning_effort,
+                                       max_tokens, tool_choice, "local")
+
+        # Infer provider from base_url for backward compat
+        inferred = self._infer_provider_from_env()
+        return self._chat_provider(messages, model, tools, reasoning_effort,
+                                   max_tokens, tool_choice, inferred)
+
+    def _infer_provider_from_env(self) -> str:
+        """Infer provider from OUROBOROS_LLM_BASE_URL for backward compat."""
+        base_url = os.environ.get("OUROBOROS_LLM_BASE_URL", "")
+        if "nvidia" in base_url:
+            return "nvidia"
+        if "api.openai.com" in base_url:
+            return "openai"
+        return "openrouter"
+
+    def _chat_local(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]],
+        max_tokens: int,
+        tool_choice: str,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Legacy wrapper: route to local provider."""
+        return self._chat_provider(messages, "local-model", tools, "medium",
+                                   max_tokens, tool_choice, "local")
+
+    def _chat_openrouter(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        tools: Optional[List[Dict[str, Any]]],
+        reasoning_effort: str,
+        max_tokens: int,
+        tool_choice: str,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Legacy wrapper: route to openrouter provider."""
+        return self._chat_provider(messages, model, tools, reasoning_effort,
+                                   max_tokens, tool_choice, "openrouter")
 
     def vision_query(
         self,
@@ -331,23 +439,9 @@ class LLMClient:
         model: str = "anthropic/claude-sonnet-4.6",
         max_tokens: int = 1024,
         reasoning_effort: str = "low",
+        provider_name: Optional[str] = None,
     ) -> Tuple[str, Dict[str, Any]]:
-        """
-        Send a vision query to an LLM. Lightweight — no tools, no loop.
-
-        Args:
-            prompt: Text instruction for the model
-            images: List of image dicts. Each dict must have either:
-                - {"url": "https://..."} — for URL images
-                - {"base64": "<b64>", "mime": "image/png"} — for base64 images
-            model: VLM-capable model ID
-            max_tokens: Max response tokens
-            reasoning_effort: Effort level
-
-        Returns:
-            (text_response, usage_dict)
-        """
-        # Build multipart content
+        """Send a vision query to an LLM. Lightweight — no tools, no loop."""
         content: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
         for img in images:
             if "url" in img:
@@ -371,6 +465,7 @@ class LLMClient:
             tools=None,
             reasoning_effort=reasoning_effort,
             max_tokens=max_tokens,
+            provider_name=provider_name,
         )
         text = response_msg.get("content") or ""
         return text, usage
@@ -393,18 +488,12 @@ class LLMClient:
 
     def get_pricing_info(self) -> Dict[str, Any]:
         """Fetch current pricing info from the configured provider."""
-        if self._base_url.startswith("https://integrate.api.nvidia.com/v1"):
-            # NVIDIA pricing endpoint (example, may need adjustment)
-            try:
-                import requests
-                resp = requests.get(
-                    f"{self._base_url.rstrip('/')}/pricing",
-                    headers={"Authorization": f"Bearer {self._api_key}"},
-                    timeout=5
-                )
-                if resp.status_code == 200:
-                    return resp.json()
-            except Exception as e:
-                log.warning(f"Failed to fetch NVIDIA pricing: {e}")
-        # Fallback to OpenRouter pricing
-        return fetch_openrouter_pricing()
+        from ouroboros.providers import PROVIDERS
+        result = {}
+        for p in PROVIDERS.values():
+            result.update(p.pricing)
+        # Also fetch dynamic pricing from OpenRouter
+        live = fetch_openrouter_pricing()
+        if live:
+            result.update(live)
+        return result

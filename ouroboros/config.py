@@ -46,7 +46,7 @@ SETTINGS_DEFAULTS = {
     "PROVIDER_CODE": "nvidia",
     "PROVIDER_LIGHT": "nvidia",
     "PROVIDER_FALLBACK": "nvidia",
-    "OUROBOROS_MODEL": "meta/llama-3.3-70b-instruct",
+    "OUROBOROS_MODEL": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
     "OUROBOROS_MODEL_CODE": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
     "OUROBOROS_MODEL_LIGHT": "meta/llama-3.1-8b-instruct",
     "OUROBOROS_MODEL_FALLBACK": "nvidia/llama-3.3-nemotron-super-49b-v1",

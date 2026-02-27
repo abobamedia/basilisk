@@ -870,6 +870,7 @@ def _emit_llm_usage_event(
     usage: Dict[str, Any],
     cost: float,
     category: str = "task",
+    provider: str = "",
 ) -> None:
     """
     Emit llm_usage event to the event queue.
@@ -881,6 +882,7 @@ def _emit_llm_usage_event(
         usage: Usage dict from LLM response
         cost: Calculated cost for this call
         category: Budget category (task, evolution, consciousness, review, summarize, other)
+        provider: LLM provider name (openrouter, nvidia, openai, etc.)
     """
     if not event_queue:
         return
@@ -890,7 +892,8 @@ def _emit_llm_usage_event(
             "ts": utc_now_iso(),
             "task_id": task_id,
             "model": model,
-            "api_key_type": _infer_api_key_type(model),
+            "provider": provider or _infer_api_key_type(model),
+            "api_key_type": provider or _infer_api_key_type(model),
             "model_category": _infer_model_category(model),
             "prompt_tokens": int(usage.get("prompt_tokens") or 0),
             "completion_tokens": int(usage.get("completion_tokens") or 0),
@@ -956,7 +959,8 @@ def _call_llm_with_retry(
 
             # Emit real-time usage event with category based on task_type
             category = task_type if task_type in ("evolution", "consciousness", "review", "summarize") else "task"
-            _emit_llm_usage_event(event_queue, task_id, model, usage, cost, category)
+            _emit_llm_usage_event(event_queue, task_id, model, usage, cost, category,
+                                  provider=provider_name or "")
 
             # Empty response = retry-worthy (model sometimes returns empty content with no tool_calls)
             tool_calls = msg.get("tool_calls") or []

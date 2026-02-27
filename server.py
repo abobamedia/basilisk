@@ -545,7 +545,7 @@ async def api_state(request: Request) -> JSONResponse:
 async def api_settings_get(request: Request) -> JSONResponse:
     settings = load_settings()
     safe = {k: v for k, v in settings.items()}
-    for key in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NVIDIA_API_KEY", "OPENCLAW_API_TOKEN", "GITHUB_TOKEN"):
+    for key in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NVIDIA_API_KEY", "OPENCLAW_API_TOKEN", "BONSAI_API_KEY", "GITHUB_TOKEN"):
         if safe.get(key):
             safe[key] = safe[key][:8] + "..." if len(safe[key]) > 8 else "***"
     return JSONResponse(safe)
@@ -827,7 +827,12 @@ async def lifespan(app):
     _event_loop = asyncio.get_running_loop()
 
     settings = load_settings()
-    if settings.get("OPENROUTER_API_KEY"):
+    # Start supervisor if ANY LLM provider API key is configured
+    _has_any_key = any(settings.get(k) for k in (
+        "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY", "BONSAI_API_KEY", "OPENCLAW_API_TOKEN",
+    ))
+    if _has_any_key:
         threading.Thread(target=_run_supervisor, args=(settings,), daemon=True).start()
     else:
         _supervisor_ready.set()

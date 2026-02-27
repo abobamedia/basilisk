@@ -194,7 +194,8 @@ class BackgroundConsciousness:
             for round_idx in range(1, self._max_bg_rounds + 1):
                 if self._paused:
                     break
-                _use_local_light = os.environ.get("USE_LOCAL_LIGHT", "").lower() in ("true", "1")
+                _provider_light = os.environ.get("PROVIDER_LIGHT", "openrouter")
+                _use_local_light = _provider_light == "local" or os.environ.get("USE_LOCAL_LIGHT", "").lower() in ("true", "1")
                 msg, usage = self._llm.chat(
                     messages=messages,
                     model=model,
@@ -202,6 +203,7 @@ class BackgroundConsciousness:
                     reasoning_effort="low",
                     max_tokens=2048,
                     use_local=_use_local_light,
+                    provider_name=_provider_light,
                 )
                 cost = float(usage.get("cost") or 0)
                 total_cost += cost
@@ -223,7 +225,7 @@ class BackgroundConsciousness:
                 if self._event_queue is not None:
                     self._event_queue.put({
                         "type": "llm_usage",
-                        "provider": "openrouter",
+                        "provider": _provider_light,
                         "model": model,
                         "usage": usage,
                         "cost": cost,

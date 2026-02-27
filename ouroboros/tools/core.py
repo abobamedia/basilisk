@@ -264,12 +264,14 @@ Now write a comprehensive summary:"""
             {"role": "user", "content": prompt}
         ]
 
-        _use_local_light = os.environ.get("USE_LOCAL_LIGHT", "").lower() in ("true", "1")
+        _provider_light = os.environ.get("PROVIDER_LIGHT", "openrouter")
+        _use_local_light = _provider_light == "local" or os.environ.get("USE_LOCAL_LIGHT", "").lower() in ("true", "1")
         response, usage = llm.chat(
             messages=messages,
             model=model,
             max_tokens=4096,
             use_local=_use_local_light,
+            provider_name=_provider_light,
         )
 
         # Track cost in budget system

@@ -649,13 +649,15 @@ def compact_tool_history_llm(messages: list, keep_recent: int = 6) -> list:
         from ouroboros.llm import LLMClient, DEFAULT_LIGHT_MODEL
         light_model = os.environ.get("OUROBOROS_MODEL_LIGHT") or DEFAULT_LIGHT_MODEL
         client = LLMClient()
-        _use_local_light = os.environ.get("USE_LOCAL_LIGHT", "").lower() in ("true", "1")
+        _provider_light = os.environ.get("PROVIDER_LIGHT", "openrouter")
+        _use_local_light = _provider_light == "local" or os.environ.get("USE_LOCAL_LIGHT", "").lower() in ("true", "1")
         resp_msg, _usage = client.chat(
             messages=[{"role": "user", "content": prompt}],
             model=light_model,
             reasoning_effort="low",
             max_tokens=1024,
             use_local=_use_local_light,
+            provider_name=_provider_light,
         )
         summary_text = resp_msg.get("content") or ""
         if not summary_text.strip():

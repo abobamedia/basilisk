@@ -378,7 +378,8 @@ class OuroborosAgent:
         self._emit_typing_start()
 
         # --- Build context (delegated to context.py) ---
-        _use_local = os.environ.get("USE_LOCAL_MAIN", "").lower() in ("true", "1")
+        _provider_main = os.environ.get("PROVIDER_MAIN", "openrouter")
+        _use_local = _provider_main == "local" or os.environ.get("USE_LOCAL_MAIN", "").lower() in ("true", "1")
         _soft_cap = 200_000
         if _use_local:
             _local_ctx = int(os.environ.get("LOCAL_MODEL_CONTEXT_LENGTH", "0"))

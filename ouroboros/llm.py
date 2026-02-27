@@ -8,9 +8,12 @@ Contract: chat(), default_model(), available_models(), add_usage().
 from __future__ import annotations
 
 import copy
+import json as _json
 import logging
 import os
+import re
 import time
+import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
@@ -248,6 +251,74 @@ class LLMClient:
             log.debug("Failed to fetch generation cost", exc_info=True)
         return None
 
+    # ------------------------------------------------------------------
+    # Text-based tool call rescue
+    # ------------------------------------------------------------------
+
+    _TOOLCALL_TAG_RE = re.compile(
+        r"TOOLCALL>\s*(\[.*?\])\s*</TOOLCALL>", re.DOTALL
+    )
+    _TOOLCALL_JSON_RE = re.compile(
+        r'\{\s*"name"\s*:\s*"(\w+)"\s*,\s*"arguments"\s*:\s*(\{.*?\})\s*\}',
+        re.DOTALL,
+    )
+
+    def _rescue_text_tool_calls(self, content: str) -> Optional[List[Dict[str, Any]]]:
+        """Parse tool calls embedded as text in the model response.
+
+        Some models (NVIDIA NIM free tier) occasionally emit tool calls as
+        ``TOOLCALL>[...]</TOOLCALL>`` or similar textual patterns instead of
+        using the proper JSON ``tool_calls`` field.  This method detects those
+        patterns and converts them into the standard OpenAI tool_calls format
+        so the agent loop can execute them normally.
+
+        Returns a list of tool-call dicts or *None* if nothing was found.
+        """
+        if "TOOLCALL" not in content and '"name"' not in content:
+            return None
+
+        calls: List[Dict[str, Any]] = []
+
+        # Pattern 1: TOOLCALL>[{...}]</TOOLCALL>
+        tag_match = self._TOOLCALL_TAG_RE.search(content)
+        if tag_match:
+            try:
+                items = _json.loads(tag_match.group(1))
+                if isinstance(items, list):
+                    for item in items:
+                        name = item.get("name", "")
+                        args = item.get("arguments") or item.get("parameters") or {}
+                        if name:
+                            calls.append({
+                                "id": f"rescued-{uuid.uuid4().hex[:12]}",
+                                "type": "function",
+                                "function": {
+                                    "name": name,
+                                    "arguments": _json.dumps(args) if isinstance(args, dict) else str(args),
+                                },
+                            })
+            except (_json.JSONDecodeError, TypeError):
+                pass
+
+        # Pattern 2: raw JSON objects with "name" and "arguments"
+        if not calls:
+            for m in self._TOOLCALL_JSON_RE.finditer(content):
+                name = m.group(1)
+                try:
+                    args = _json.loads(m.group(2))
+                    calls.append({
+                        "id": f"rescued-{uuid.uuid4().hex[:12]}",
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "arguments": _json.dumps(args),
+                        },
+                    })
+                except _json.JSONDecodeError:
+                    pass
+
+        return calls if calls else None
+
     def _resolve_cost(self, provider_name: str, usage: Dict[str, Any], resp_dict: Dict[str, Any]) -> None:
         """Resolve cost from provider-specific sources. Mutates usage dict in-place."""
         from ouroboros.providers import get_provider
@@ -362,6 +433,17 @@ class LLMClient:
         usage = resp_dict.get("usage") or {}
         choices = resp_dict.get("choices") or [{}]
         msg = (choices[0] if choices else {}).get("message") or {}
+
+        # Rescue text-based tool calls: some models (especially on NVIDIA
+        # NIM free tier) occasionally emit tool calls as text instead of
+        # using the proper function-calling JSON.  Detect common patterns
+        # (<TOOLCALL>, ```tool_call, etc.) and convert them.
+        if not msg.get("tool_calls") and msg.get("content"):
+            rescued = self._rescue_text_tool_calls(msg["content"])
+            if rescued:
+                msg["tool_calls"] = rescued
+                msg["content"] = None
+                log.info("Rescued %d text-based tool call(s)", len(rescued))
 
         # Resolve cost
         self._resolve_cost(provider_name, usage, resp_dict)

@@ -359,7 +359,7 @@ def get_tools() -> List[ToolEntry]:
                 "model": {"type": "string", "description": "Model name (e.g. anthropic/claude-sonnet-4). Leave empty to keep current."},
                 "effort": {"type": "string", "enum": ["low", "medium", "high", "xhigh"],
                            "description": "Reasoning effort level. Leave empty to keep current."},
-                "provider": {"type": "string", "enum": ["openrouter", "nvidia", "openai", "local"],
+                "provider": {"type": "string", "enum": ["openrouter", "nvidia", "openai", "bonsai", "codex", "local"],
                              "description": "LLM provider. Leave empty to use the slot's configured provider."},
             }, "required": []},
         }, _switch_model),

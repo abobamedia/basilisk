@@ -84,7 +84,7 @@ class ToolEntry:
 CORE_TOOL_NAMES = {
     "repo_read", "repo_list", "repo_write_commit", "repo_commit",
     "data_read", "data_list", "data_write",
-    "run_shell", "claude_code_edit",
+    "run_shell", "claude_code_edit", "bonsai_code_edit",
     "git_status", "git_diff",
     "schedule_task", "wait_for_task", "get_task_result",
     "update_scratchpad", "update_identity",

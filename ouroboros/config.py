@@ -41,6 +41,7 @@ SETTINGS_DEFAULTS = {
     "ANTHROPIC_API_KEY": "",
     "NVIDIA_API_KEY": "",
     "OPENCLAW_API_TOKEN": "",
+    "BONSAI_API_KEY": "",
     # Per-slot provider: "openrouter", "nvidia", "openai", "codex", "local"
     "PROVIDER_MAIN": "nvidia",
     "PROVIDER_CODE": "nvidia",
@@ -160,7 +161,7 @@ def save_settings(settings: dict) -> None:
 def apply_settings_to_env(settings: dict) -> None:
     """Push settings into environment variables for supervisor modules."""
     env_keys = [
-        "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NVIDIA_API_KEY", "OPENCLAW_API_TOKEN",
+        "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NVIDIA_API_KEY", "OPENCLAW_API_TOKEN", "BONSAI_API_KEY",
         "OUROBOROS_MODEL", "OUROBOROS_MODEL_CODE", "OUROBOROS_MODEL_LIGHT",
         "OUROBOROS_MODEL_FALLBACK", "CLAUDE_CODE_MODEL",
         "TOTAL_BUDGET", "GITHUB_TOKEN", "GITHUB_REPO",

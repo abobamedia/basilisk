@@ -263,6 +263,51 @@ class LLMClient:
         re.DOTALL,
     )
 
+    # Patterns that indicate hallucinated / garbled output from weak models
+    _CJK_RE = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]')          # Chinese/Japanese
+    _DEVANAGARI_RE = re.compile(r'[\u0900-\u097f]')                               # Hindi
+    _ARABIC_RE = re.compile(r'[\u0600-\u06ff]')                                   # Arabic
+    _MALAY_INDO_MARKERS = re.compile(
+        r'\b(karena|tidak|atau|dengan|untuk|sudah|adalah|jika|belum|agar|sehingga)\b', re.I
+    )
+
+    @staticmethod
+    def _looks_like_hallucination(text: str) -> bool:
+        """Detect garbled / multi-script hallucinations from weak models.
+
+        Returns True if the text looks like nonsensical output that mixes
+        multiple writing systems or contains hallucination markers.
+        """
+        if not text or len(text) < 20:
+            return False
+
+        # Count different script families present
+        has_cyrillic = bool(re.search(r'[а-яА-ЯёЁ]', text))
+        has_cjk = bool(LLMClient._CJK_RE.search(text))
+        has_devanagari = bool(LLMClient._DEVANAGARI_RE.search(text))
+        has_arabic = bool(LLMClient._ARABIC_RE.search(text))
+        has_indonesian = bool(LLMClient._MALAY_INDO_MARKERS.search(text))
+
+        script_count = sum([has_cyrillic, has_cjk, has_devanagari, has_arabic, has_indonesian])
+
+        # 3+ different script families in one response = hallucination
+        if script_count >= 3:
+            return True
+
+        # 2 unusual script families (cyrillic + any non-Latin exotic) = hallucination
+        if has_cyrillic and (has_devanagari or has_arabic):
+            return True
+
+        # Cyrillic mixed with Indonesian/Malay = classic nemotron hallucination
+        if has_cyrillic and has_indonesian:
+            return True
+
+        # Cyrillic mixed with CJK in a short response (not a quote/code)
+        if has_cyrillic and has_cjk and len(text) < 500:
+            return True
+
+        return False
+
     def _rescue_text_tool_calls(self, content: str) -> Optional[List[Dict[str, Any]]]:
         """Parse tool calls embedded as text in the model response.
 
@@ -440,6 +485,37 @@ class LLMClient:
         usage = resp_dict.get("usage") or {}
         choices = resp_dict.get("choices") or [{}]
         msg = (choices[0] if choices else {}).get("message") or {}
+
+        # Hallucination detection: if the response looks garbled (mixed
+        # scripts, Indonesian text in Russian context, etc.), retry once.
+        content_text = msg.get("content") or ""
+        if (
+            not msg.get("tool_calls")
+            and content_text
+            and self._looks_like_hallucination(content_text)
+        ):
+            log.warning(
+                "Hallucination detected (mixed scripts / garbled output). "
+                "Retrying once. First 80 chars: %s",
+                content_text[:80],
+            )
+            try:
+                resp2 = client.chat.completions.create(**kwargs)
+                resp_dict2 = resp2.model_dump()
+                usage2 = resp_dict2.get("usage") or {}
+                choices2 = resp_dict2.get("choices") or [{}]
+                msg2 = (choices2[0] if choices2 else {}).get("message") or {}
+                content2 = msg2.get("content") or ""
+                if not self._looks_like_hallucination(content2):
+                    # Retry succeeded — use the clean response
+                    msg, usage, resp_dict = msg2, usage2, resp_dict2
+                    log.info("Hallucination retry succeeded.")
+                else:
+                    log.warning("Hallucination retry also garbled. Using fallback message.")
+                    msg["content"] = "Извини, мне не удалось сформулировать ответ. Попробуй переформулировать вопрос."
+            except Exception:
+                log.warning("Hallucination retry failed with exception.", exc_info=True)
+                msg["content"] = "Извини, мне не удалось сформулировать ответ. Попробуй переформулировать вопрос."
 
         # Rescue text-based tool calls: some models (especially on NVIDIA
         # NIM free tier) occasionally emit tool calls as text instead of

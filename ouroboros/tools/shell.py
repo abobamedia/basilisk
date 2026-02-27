@@ -390,6 +390,8 @@ def _claude_code_edit(ctx: ToolContext, prompt: str, cwd: str = "",
 
         env = os.environ.copy()
         env["ANTHROPIC_API_KEY"] = api_key
+        # Allow nested Claude Code sessions (Ouroboros itself may run inside one)
+        env.pop("CLAUDECODE", None)
         try:
             if hasattr(os, "geteuid") and os.geteuid() == 0:
                 env.setdefault("IS_SANDBOX", "1")
@@ -424,6 +426,142 @@ def _claude_code_edit(ctx: ToolContext, prompt: str, cwd: str = "",
     return _parse_claude_output(stdout, ctx)
 
 
+def _ensure_bonsai_cli(ctx: ToolContext) -> Optional[str]:
+    """Ensure bonsai CLI is available. Returns error string or None on success."""
+    _ensure_path()
+    if shutil.which("bonsai"):
+        return None
+    # Try to install via npm (node must be present)
+    npm = shutil.which("npm") or str(_NODE_BIN / "npm")
+    if not pathlib.Path(npm).exists():
+        return "⚠️ bonsai CLI not found and npm unavailable. Install with: npm install -g @bonsai-ai/cli"
+    with _install_lock:
+        if shutil.which("bonsai"):
+            return None
+        ctx.emit_progress_fn("bonsai CLI not found. Installing @bonsai-ai/cli...")
+        try:
+            _tracked_subprocess_run(
+                [npm, "install", "-g", "@bonsai-ai/cli"],
+                env={**os.environ, "PATH": _build_augmented_path()},
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, timeout=180,
+            )
+        except Exception as e:
+            return f"⚠️ npm install @bonsai-ai/cli failed: {e}"
+        _ensure_path()
+        if shutil.which("bonsai"):
+            ctx.emit_progress_fn("bonsai CLI installed successfully.")
+            return None
+        return "⚠️ bonsai CLI not found in PATH after install."
+
+
+def _bonsai_code_edit(ctx: ToolContext, prompt: str, cwd: str = "",
+                      budget: float = 1.0) -> str:
+    """Delegate code edits to Claude Code CLI via Bonsai (free tier proxy).
+
+    Works by launching: ANTHROPIC_BASE_URL=https://go.trybons.ai
+                        ANTHROPIC_AUTH_TOKEN=<BONSAI_API_KEY>
+                        npx @anthropic-ai/claude-code <args>
+
+    This is exactly what `bonsai start` does — we replicate it directly
+    to avoid interactive mode and capture output as JSON.
+    """
+    from ouroboros.tools.git import _acquire_git_lock, _release_git_lock
+
+    bonsai_key = os.environ.get("BONSAI_API_KEY", "")
+    if not bonsai_key:
+        return "⚠️ BONSAI_API_KEY not set. Add it in Settings."
+
+    work_dir = str(ctx.repo_dir)
+    if cwd and cwd.strip() not in ("", ".", "./"):
+        candidate = (ctx.repo_dir / cwd).resolve()
+        if candidate.exists():
+            work_dir = str(candidate)
+
+    install_err = _ensure_claude_cli(ctx)
+    if install_err:
+        return install_err
+
+    ctx.emit_progress_fn("Delegating to Bonsai (Claude via Bonsai proxy)...")
+
+    model = os.environ.get("CLAUDE_CODE_MODEL", "sonnet").strip()
+
+    lock = _acquire_git_lock(ctx)
+    try:
+        try:
+            run_cmd(["git", "checkout", ctx.branch_dev], cwd=ctx.repo_dir)
+        except Exception as e:
+            return f"⚠️ GIT_ERROR (checkout): {e}"
+
+        full_prompt = (
+            f"STRICT: Only modify files inside {work_dir}. "
+            f"Git branch: {ctx.branch_dev}. Do NOT commit or push.\n\n"
+            f"{prompt}"
+        )
+
+        env = os.environ.copy()
+        # Bonsai proxy: redirect Anthropic SDK calls through go.trybons.ai
+        env["ANTHROPIC_BASE_URL"] = "https://go.trybons.ai"
+        env["ANTHROPIC_AUTH_TOKEN"] = bonsai_key
+        # Remove direct Anthropic key so Claude Code uses Bonsai proxy
+        env.pop("ANTHROPIC_API_KEY", None)
+        # Allow nested Claude Code sessions (Ouroboros itself may run inside one)
+        env.pop("CLAUDECODE", None)
+        try:
+            if hasattr(os, "geteuid") and os.geteuid() == 0:
+                env.setdefault("IS_SANDBOX", "1")
+        except Exception:
+            pass
+
+        _ensure_path()
+        env["PATH"] = os.environ["PATH"]
+
+        res = _run_claude_cli(work_dir, full_prompt, env,
+                              model=model, budget=budget)
+
+        stdout = (res.stdout or "").strip()
+        stderr = (res.stderr or "").strip()
+        if res.returncode != 0:
+            return f"⚠️ BONSAI_CODE_ERROR: exit={res.returncode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+        if not stdout:
+            stdout = "OK: Bonsai Code completed with empty output."
+
+        warning = _check_uncommitted_changes(ctx.repo_dir)
+        if warning:
+            stdout += warning
+
+    except subprocess.TimeoutExpired:
+        return "⚠️ BONSAI_CODE_TIMEOUT: exceeded 300s."
+    except Exception as e:
+        return f"⚠️ BONSAI_CODE_FAILED: {type(e).__name__}: {e}"
+    finally:
+        _release_git_lock(lock)
+
+    # Emit cost event (Bonsai is free — $0)
+    try:
+        payload = json.loads(stdout)
+        ctx.pending_events.append({
+            "type": "llm_usage",
+            "provider": "bonsai",
+            "model": f"bonsai/{model}",
+            "api_key_type": "bonsai",
+            "model_category": "bonsai_code",
+            "usage": {"cost": 0.0},
+            "cost": 0.0,
+            "source": "bonsai_code_edit",
+            "ts": utc_now_iso(),
+            "category": "task",
+        })
+        out: Dict[str, Any] = {
+            "result": payload.get("result", ""),
+            "session_id": payload.get("session_id"),
+            "provider": "bonsai",
+        }
+        return json.dumps(out, ensure_ascii=False, indent=2)
+    except Exception:
+        return stdout
+
+
 def get_tools() -> List[ToolEntry]:
     return [
         ToolEntry("run_shell", {
@@ -444,4 +582,19 @@ def get_tools() -> List[ToolEntry]:
                            "description": "Max USD for this Claude Code call. Default: 1.0"},
             }, "required": ["prompt"]},
         }, _claude_code_edit, is_code_tool=True, timeout_sec=300),
+        ToolEntry("bonsai_code_edit", {
+            "name": "bonsai_code_edit",
+            "description": (
+                "Delegate code edits to Claude Code CLI via Bonsai (free tier). "
+                "Same capability as claude_code_edit but uses BONSAI_API_KEY instead of ANTHROPIC_API_KEY — "
+                "costs $0. Preferred when ANTHROPIC_API_KEY is unavailable or you want to save budget. "
+                "Follow with repo_commit."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "prompt": {"type": "string"},
+                "cwd": {"type": "string", "default": ""},
+                "budget": {"type": "number",
+                           "description": "Max USD budget hint (Bonsai is free, this is for reference only). Default: 1.0"},
+            }, "required": ["prompt"]},
+        }, _bonsai_code_edit, is_code_tool=True, timeout_sec=300),
     ]

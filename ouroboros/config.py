@@ -40,15 +40,16 @@ SETTINGS_DEFAULTS = {
     "OPENAI_API_KEY": "",
     "ANTHROPIC_API_KEY": "",
     "NVIDIA_API_KEY": "",
-    # Per-slot provider: "openrouter", "nvidia", "openai", "local"
+    "OPENCLAW_API_TOKEN": "",
+    # Per-slot provider: "openrouter", "nvidia", "openai", "codex", "local"
     "PROVIDER_MAIN": "nvidia",
     "PROVIDER_CODE": "nvidia",
     "PROVIDER_LIGHT": "nvidia",
-    "PROVIDER_FALLBACK": "openrouter",
+    "PROVIDER_FALLBACK": "nvidia",
     "OUROBOROS_MODEL": "meta/llama-3.3-70b-instruct",
-    "OUROBOROS_MODEL_CODE": "qwen/qwen2.5-coder-32b-instruct",
+    "OUROBOROS_MODEL_CODE": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
     "OUROBOROS_MODEL_LIGHT": "meta/llama-3.1-8b-instruct",
-    "OUROBOROS_MODEL_FALLBACK": "google/gemini-3-flash-preview",
+    "OUROBOROS_MODEL_FALLBACK": "nvidia/llama-3.3-nemotron-super-49b-v1",
     "CLAUDE_CODE_MODEL": "sonnet",
     "OUROBOROS_MAX_WORKERS": 5,
     "TOTAL_BUDGET": 10.0,
@@ -159,7 +160,7 @@ def save_settings(settings: dict) -> None:
 def apply_settings_to_env(settings: dict) -> None:
     """Push settings into environment variables for supervisor modules."""
     env_keys = [
-        "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NVIDIA_API_KEY",
+        "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NVIDIA_API_KEY", "OPENCLAW_API_TOKEN",
         "OUROBOROS_MODEL", "OUROBOROS_MODEL_CODE", "OUROBOROS_MODEL_LIGHT",
         "OUROBOROS_MODEL_FALLBACK", "CLAUDE_CODE_MODEL",
         "TOTAL_BUDGET", "GITHUB_TOKEN", "GITHUB_REPO",

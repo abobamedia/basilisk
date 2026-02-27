@@ -317,6 +317,10 @@ class LLMClient:
             kwargs["model"] = "local-model"
             kwargs["max_tokens"] = self._local_max_tokens(max_tokens)
 
+        # Codex (OpenClaw) gateway: map to openclaw agent model
+        if provider_name == "codex":
+            kwargs["model"] = "openclaw:main"
+
         # OpenRouter-specific: reasoning + provider routing
         if provider.supports_reasoning:
             effort = normalize_reasoning_effort(reasoning_effort)

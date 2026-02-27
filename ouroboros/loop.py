@@ -662,6 +662,8 @@ def run_llm_loop(
         MAX_ROUNDS = 200
         log.warning("Invalid OUROBOROS_MAX_ROUNDS, defaulting to 200")
     round_idx = 0
+    _recent_tool_sigs: list = []  # track recent tool-call signatures for loop detection
+    LOOP_DETECT_WINDOW = 3       # break after this many identical consecutive tool calls
     try:
         while True:
             round_idx += 1
@@ -766,6 +768,38 @@ def run_llm_loop(
             # No tool calls — final response
             if not tool_calls:
                 return _handle_text_response(content, llm_trace, accumulated_usage)
+
+            # Loop detection: if the model keeps issuing identical tool calls,
+            # break out to prevent infinite cycling (common with weaker models).
+            tc_sig = "|".join(
+                sorted(
+                    f"{tc.get('function',{}).get('name','')}"
+                    for tc in tool_calls
+                    if isinstance(tc, dict)
+                )
+            )
+            _recent_tool_sigs.append(tc_sig)
+            if len(_recent_tool_sigs) > LOOP_DETECT_WINDOW:
+                _recent_tool_sigs.pop(0)
+            if (
+                len(_recent_tool_sigs) >= LOOP_DETECT_WINDOW
+                and len(set(_recent_tool_sigs)) == 1
+                and round_idx >= LOOP_DETECT_WINDOW + 1
+            ):
+                log.warning(
+                    "Loop detected: identical tool calls '%s' for %d consecutive rounds. Breaking.",
+                    tc_sig, LOOP_DETECT_WINDOW,
+                )
+                last_content = content or ""
+                # Try to extract any text the model was repeating as the response
+                for prev_msg in reversed(messages):
+                    if prev_msg.get("role") == "assistant" and prev_msg.get("content"):
+                        last_content = prev_msg["content"]
+                        break
+                return _handle_text_response(
+                    last_content or "⚠️ Task stopped: detected repetitive loop.",
+                    llm_trace, accumulated_usage,
+                )
 
             # Process tool calls
             messages.append({"role": "assistant", "content": content or "", "tool_calls": tool_calls})

@@ -376,6 +376,13 @@ class LLMClient:
         else:
             clean_messages = messages
 
+        # NVIDIA NIM rejects empty content strings ("string_too_short").
+        # Replace empty/null content with a single space for non-system msgs.
+        if provider.requires_content_flattening:
+            for m in clean_messages:
+                if m.get("role") in ("assistant", "tool") and not m.get("content"):
+                    m["content"] = " "
+
         # Build kwargs
         kwargs: Dict[str, Any] = {
             "model": model,

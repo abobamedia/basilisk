@@ -17,9 +17,19 @@ log = logging.getLogger(__name__)
 MAX_SUBTASK_DEPTH = 3
 
 
+_restart_count_per_task: Dict[str, int] = {}
+MAX_RESTARTS_PER_TASK = 2
+
+
 def _request_restart(ctx: ToolContext, reason: str) -> str:
     if str(ctx.current_task_type or "") == "evolution" and not ctx.last_push_succeeded:
         return "⚠️ RESTART_BLOCKED: in evolution mode, commit+push first."
+    # Rate-limit restarts: max 2 per task to prevent restart loops
+    tid = str(getattr(ctx, "task_id", "") or "global")
+    count = _restart_count_per_task.get(tid, 0)
+    if count >= MAX_RESTARTS_PER_TASK:
+        return f"⚠️ RESTART_BLOCKED: already requested {count} restarts for this task. Focus on the current task instead."
+    _restart_count_per_task[tid] = count + 1
     # Persist expected SHA for post-restart verification
     try:
         sha = run_cmd(["git", "rev-parse", "HEAD"], cwd=ctx.repo_dir)

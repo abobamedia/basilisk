@@ -260,14 +260,25 @@ class BackgroundConsciousness:
                     break
 
                 # If we have tool calls, execute them and continue loop
+                # Cap at 3 tool calls per round to prevent nano-model hallucination floods
                 if tool_calls:
+                    capped = tool_calls[:3]
+                    if len(tool_calls) > 3:
+                        log.warning("Consciousness: capping %d tool calls to 3 per round", len(tool_calls))
                     messages.append(msg)
-                    for tc in tool_calls:
+                    for tc in capped:
                         result = self._execute_tool(tc, all_pending_events)
                         messages.append({
                             "role": "tool",
                             "tool_call_id": tc.get("id", ""),
                             "content": result,
+                        })
+                    # Add stub results for skipped tool calls to keep message format valid
+                    for tc in tool_calls[3:]:
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.get("id", ""),
+                            "content": "[SKIPPED: too many tool calls in single round]",
                         })
                     continue
 

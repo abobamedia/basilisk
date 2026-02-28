@@ -362,6 +362,11 @@ class LLMClient:
                 except _json.JSONDecodeError:
                     pass
 
+        # Cap rescued calls to prevent hallucinated tool-call floods
+        if calls and len(calls) > 5:
+            log.warning("Rescued %d tool calls but capping at 5 to prevent hallucination floods", len(calls))
+            calls = calls[:5]
+
         return calls if calls else None
 
     def _resolve_cost(self, provider_name: str, usage: Dict[str, Any], resp_dict: Dict[str, Any]) -> None:

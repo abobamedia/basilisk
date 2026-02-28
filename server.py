@@ -154,8 +154,16 @@ def _run_supervisor(settings: dict) -> None:
             branch_dev="ouroboros", branch_stable="ouroboros-stable",
         )
         ensure_repo_present()
-        _repo_slug = settings.get("GITHUB_REPO", "")
+        _gh_user = settings.get("GITHUB_USER", "")
+        _gh_repo = settings.get("GITHUB_REPO", "")
         _gh_token = settings.get("GITHUB_TOKEN", "")
+        # Build repo slug: "owner/repo" format
+        if "/" in _gh_repo:
+            _repo_slug = _gh_repo  # already full slug
+        elif _gh_user and _gh_repo:
+            _repo_slug = f"{_gh_user}/{_gh_repo}"
+        else:
+            _repo_slug = _gh_repo
         if _repo_slug and _gh_token:
             from supervisor.git_ops import configure_remote
             configure_remote(_repo_slug, _gh_token)

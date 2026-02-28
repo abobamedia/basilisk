@@ -446,8 +446,11 @@ function initSettings() {
             <div class="divider"></div>
             <div class="form-section">
                 <h3>GitHub (optional)</h3>
-                <div class="form-row"><div class="form-field"><label>GitHub Token</label><input id="s-gh-token" type="password" placeholder="ghp_..."></div></div>
-                <div class="form-row"><div class="form-field"><label>GitHub Repo</label><input id="s-gh-repo" placeholder="owner/repo-name"></div></div>
+                <div class="form-row"><div class="form-field"><label>GitHub Token</label><input id="s-gh-token" type="password" placeholder="ghp_... or github_pat_..."></div></div>
+                <div class="form-row">
+                    <div class="form-field"><label>GitHub User</label><input id="s-gh-user" placeholder="username"></div>
+                    <div class="form-field"><label>GitHub Repo</label><input id="s-gh-repo" placeholder="repo-name"></div>
+                </div>
             </div>
             <div class="divider"></div>
             <div class="form-row">
@@ -492,6 +495,7 @@ function initSettings() {
         if (s.OUROBOROS_SOFT_TIMEOUT_SEC) document.getElementById('s-soft-timeout').value = s.OUROBOROS_SOFT_TIMEOUT_SEC;
         if (s.OUROBOROS_HARD_TIMEOUT_SEC) document.getElementById('s-hard-timeout').value = s.OUROBOROS_HARD_TIMEOUT_SEC;
         if (s.GITHUB_TOKEN) document.getElementById('s-gh-token').value = s.GITHUB_TOKEN;
+        if (s.GITHUB_USER) document.getElementById('s-gh-user').value = s.GITHUB_USER;
         if (s.GITHUB_REPO) document.getElementById('s-gh-repo').value = s.GITHUB_REPO;
         if (s.LOCAL_MODEL_SOURCE) document.getElementById('s-local-source').value = s.LOCAL_MODEL_SOURCE;
         if (s.LOCAL_MODEL_FILENAME) document.getElementById('s-local-filename').value = s.LOCAL_MODEL_FILENAME;
@@ -580,6 +584,7 @@ function initSettings() {
             TOTAL_BUDGET: parseFloat(document.getElementById('s-budget').value) || 10,
             OUROBOROS_SOFT_TIMEOUT_SEC: parseInt(document.getElementById('s-soft-timeout').value) || 600,
             OUROBOROS_HARD_TIMEOUT_SEC: parseInt(document.getElementById('s-hard-timeout').value) || 1800,
+            GITHUB_USER: document.getElementById('s-gh-user').value,
             GITHUB_REPO: document.getElementById('s-gh-repo').value,
             LOCAL_MODEL_SOURCE: document.getElementById('s-local-source').value,
             LOCAL_MODEL_FILENAME: document.getElementById('s-local-filename').value,

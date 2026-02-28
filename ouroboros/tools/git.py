@@ -159,6 +159,36 @@ def _git_commit_with_tests(ctx: ToolContext) -> Optional[str]:
     return None
 
 
+# --- Critical file protection ---
+# These files must NEVER be reduced to stubs. If the new content is less than
+# 20% of the original size, reject the write. This prevents the LLM from
+# "refactoring" core modules into empty files.
+_PROTECTED_FILES = {
+    "ouroboros/agent.py": 300,      # ~697 lines, min 300
+    "ouroboros/loop.py": 500,       # ~1074 lines, min 500
+    "ouroboros/llm.py": 200,        # LLM client, min 200
+    "ouroboros/safety.py": 50,      # safety checks, min 50
+    "server.py": 200,               # main server, min 200
+}
+
+
+def _check_protected_file(path: str, content: str) -> Optional[str]:
+    """Return error string if writing would destroy a protected file."""
+    import pathlib
+    norm = str(pathlib.PurePosixPath(path))
+    min_lines = _PROTECTED_FILES.get(norm)
+    if min_lines is None:
+        return None
+    line_count = content.count("\n") + (1 if content and not content.endswith("\n") else 0)
+    if line_count < min_lines:
+        return (
+            f"⚠️ PROTECTED_FILE_VIOLATION: {norm} is a critical file ({min_lines}+ lines expected). "
+            f"Your content has only {line_count} lines — this would destroy it. "
+            f"You must APPEND or MODIFY specific sections, not replace the entire file."
+        )
+    return None
+
+
 # --- Tool implementations ---
 
 def _repo_write_commit(ctx: ToolContext, path: str, content: str, commit_message: str, skip_tests: bool = False) -> str:
@@ -166,6 +196,10 @@ def _repo_write_commit(ctx: ToolContext, path: str, content: str, commit_message
     ctx.last_push_succeeded = False
     if not commit_message.strip():
         return "⚠️ ERROR: commit_message must be non-empty."
+    # Protect critical files from being replaced with stubs
+    prot_err = _check_protected_file(path, content)
+    if prot_err:
+        return prot_err
     lock = _acquire_git_lock(ctx)
     try:
         try:

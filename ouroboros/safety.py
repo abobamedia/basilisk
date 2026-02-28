@@ -147,7 +147,9 @@ def check_safety(
         if usage:
             update_budget_from_usage(usage)
 
-        result = _parse_safety_response(msg.get("content") or "")
+        # Try content first, fallback to reasoning_content (some models like nemotron-ultra put response there)
+        _raw = msg.get("content") or msg.get("reasoning_content") or ""
+        result = _parse_safety_response(_raw)
         if result:
             fast_status = result.get("status", "").upper()
             fast_reason = result.get("reason", "")
@@ -187,12 +189,13 @@ def check_safety(
         if usage:
             update_budget_from_usage(usage)
 
-        result = _parse_safety_response(msg.get("content") or "")
+        _raw_deep = msg.get("content") or msg.get("reasoning_content") or ""
+        result = _parse_safety_response(_raw_deep)
         if result is None:
             # If the LLM couldn't produce parseable JSON, default to SAFE rather than
             # blocking all development operations. Real attacks will be caught by the
             # keyword fallback in _parse_safety_response.
-            log.warning(f"Deep safety check returned unparseable response, defaulting to SAFE: {msg.get('content')[:200] if msg.get('content') else '(empty)'}")
+            log.warning(f"Deep safety check returned unparseable response, defaulting to SAFE: {_raw_deep[:200] if _raw_deep else '(empty)'}")
             return True, ""
 
         deep_status = result.get("status", "").upper()

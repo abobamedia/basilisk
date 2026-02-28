@@ -85,13 +85,13 @@ def test_tool_set_matches(registry):
 
 
 EXPECTED_TOOLS = [
-    "repo_read", "repo_write_commit", "repo_list", "repo_commit_push",
+    "repo_read", "repo_list", "repo_commit_push",
     "drive_read", "drive_write", "drive_list",
     "git_status", "git_diff",
     "run_shell", "claude_code_edit",
     "browse_page", "browser_action",
     "web_search",
-    "chat_history", "update_scratchpad", "update_identity",
+    "chat_history", "update_scratchpad", "update_identity", "update_user_context",
     "request_restart", "promote_to_stable", "request_review",
     "schedule_task", "cancel_task",
     "switch_model", "toggle_evolution", "toggle_consciousness",
@@ -103,6 +103,7 @@ EXPECTED_TOOLS = [
     "list_github_issues", "get_github_issue", "comment_on_issue",
     "close_github_issue", "create_github_issue",
     "summarize_dialogue",
+    "log_evolution",
     # Task decomposition
     "get_task_result", "wait_for_task",
     "generate_evolution_stats",
@@ -303,11 +304,13 @@ def test_version_in_readme():
     assert version in readme, f"VERSION {version} not found in README.md"
 
 
-def test_bible_exists_and_has_principles():
-    """BIBLE.md exists and contains all 9 principles (0-8)."""
+def test_bible_exists_and_has_sections():
+    """BIBLE.md exists and contains key sections."""
     bible = (REPO / "BIBLE.md").read_text()
-    for i in range(9):
-        assert f"Principle {i}" in bible, f"Principle {i} missing from BIBLE.md"
+    # Bible v4.0 has 18 numbered sections
+    for section in ["## 1.", "## 2.", "## 3.", "## 9.", "## 17.", "## 18."]:
+        assert section in bible, f"Section '{section}' missing from BIBLE.md"
+    assert "Constitution" in bible, "BIBLE.md should mention 'Constitution'"
 
 
 # ── Code quality invariants ──────────────────────────────────────

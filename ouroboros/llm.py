@@ -22,11 +22,6 @@ def normalize_reasoning_effort(value: str, default: str = "medium") -> str:
     return v if v in allowed else default
 
 
-def reasoning_rank(value: str) -> int:
-    order = {"none": 0, "minimal": 1, "low": 2, "medium": 3, "high": 4, "xhigh": 5}
-    return int(order.get(str(value or "").strip().lower(), 3))
-
-
 def add_usage(total: Dict[str, Any], usage: Dict[str, Any]) -> None:
     """Accumulate usage from one LLM call into a running total."""
     for k in ("prompt_tokens", "completion_tokens", "total_tokens", "cached_tokens", "cache_write_tokens"):

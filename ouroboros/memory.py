@@ -36,6 +36,9 @@ class Memory:
     def identity_path(self) -> pathlib.Path:
         return self._memory_path("identity.md")
 
+    def user_context_path(self) -> pathlib.Path:
+        return self._memory_path("USER_CONTEXT.md")
+
     def journal_path(self) -> pathlib.Path:
         return self._memory_path("scratchpad_journal.jsonl")
 
@@ -63,12 +66,25 @@ class Memory:
         write_text(p, default)
         return default
 
+    def load_user_context(self) -> str:
+        p = self.user_context_path()
+        if p.exists():
+            return read_text(p)
+        default = self._default_user_context()
+        write_text(p, default)
+        return default
+
+    def save_user_context(self, content: str) -> None:
+        write_text(self.user_context_path(), content)
+
     def ensure_files(self) -> None:
         """Create memory files if they don't exist."""
         if not self.scratchpad_path().exists():
             write_text(self.scratchpad_path(), self._default_scratchpad())
         if not self.identity_path().exists():
             write_text(self.identity_path(), self._default_identity())
+        if not self.user_context_path().exists():
+            write_text(self.user_context_path(), self._default_user_context())
         if not self.journal_path().exists():
             write_text(self.journal_path(), "")
 
@@ -114,7 +130,7 @@ class Memory:
                 if dir_raw in ("out", "outgoing"):
                     text = short(raw_text, 800)
                 else:
-                    text = raw_text  # never truncate creator's messages
+                    text = raw_text  # never truncate owner's messages
                 lines.append(f"{direction} [{ts}] {text}")
 
             return f"Showing {len(entries)} messages:\n\n" + "\n".join(lines)
@@ -163,7 +179,7 @@ class Memory:
             if dir_raw in ("out", "outgoing"):
                 text = short(raw_text, 800)
             else:
-                text = raw_text  # never truncate creator's messages
+                text = raw_text  # never truncate owner's messages
             lines.append(f"{direction} {ts_hhmm} {text}")
         return "\n".join(lines)
 
@@ -240,5 +256,14 @@ class Memory:
             "I can write anything here: how I see myself, how I want to communicate,\n"
             "what matters to me, what I have understood about myself.\n\n"
             "This file is read at every dialogue and influences my responses.\n"
-            "I update it when I feel the need, via drive_write.\n"
+            "I update it when I feel the need, via update_identity.\n"
+        )
+
+    def _default_user_context(self) -> str:
+        return (
+            "# User Context\n\n"
+            "Key information about the user. Keep under 1000 characters.\n\n"
+            "- **Who:** (not yet known)\n"
+            "- **Main goals:** (not yet known)\n"
+            "- **Current priorities:** (not yet known)\n"
         )

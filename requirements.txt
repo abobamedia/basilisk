@@ -4,3 +4,4 @@ requests
 playwright
 playwright-stealth
 python-dotenv
+pytest>=7.0

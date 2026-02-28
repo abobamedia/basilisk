@@ -87,7 +87,7 @@ def _chat_history(ctx: ToolContext, count: int = 100, offset: int = 0, search: s
 
 
 def _update_scratchpad(ctx: ToolContext, content: str) -> str:
-    """LLM-driven scratchpad update (Constitution P3: LLM-first)."""
+    """LLM-driven scratchpad update."""
     from ouroboros.memory import Memory
     mem = Memory(drive_root=ctx.drive_root)
     mem.ensure_files()
@@ -137,6 +137,17 @@ def _update_identity(ctx: ToolContext, content: str) -> str:
     return f"OK: identity updated ({len(content)} chars)"
 
 
+def _update_user_context(ctx: ToolContext, content: str) -> str:
+    """Update user context (who the user is, their goals, priorities). Keep under 1000 chars."""
+    from ouroboros.memory import Memory
+    mem = Memory(drive_root=ctx.drive_root)
+    mem.save_user_context(content)
+    warning = ""
+    if len(content) > 1000:
+        warning = f" WARNING: content is {len(content)} chars, Bible section 5 says keep under 1000."
+    return f"OK: user context updated ({len(content)} chars){warning}"
+
+
 def _toggle_evolution(ctx: ToolContext, enabled: bool) -> str:
     """Toggle evolution mode on/off via supervisor event."""
     ctx.pending_events.append({
@@ -159,7 +170,7 @@ def _toggle_consciousness(ctx: ToolContext, action: str = "status") -> str:
 
 
 def _switch_model(ctx: ToolContext, model: str = "", effort: str = "") -> str:
-    """LLM-driven model/effort switch (Constitution P3: LLM-first).
+    """LLM-driven model/effort switch.
 
     Stored in ToolContext, applied on the next LLM call in the loop.
     """
@@ -215,7 +226,8 @@ def get_tools() -> List[ToolEntry]:
         }, _request_restart),
         ToolEntry("promote_to_stable", {
             "name": "promote_to_stable",
-            "description": "Promote ouroboros -> ouroboros-stable. Call when you consider the code stable.",
+            "description": "Create a stable tag at current HEAD. Call when you consider the code stable. "
+                           "Used as rollback point on crashes.",
             "parameters": {"type": "object", "properties": {"reason": {"type": "string"}}, "required": ["reason"]},
         }, _promote_to_stable),
         ToolEntry("schedule_task", {
@@ -269,11 +281,19 @@ def get_tools() -> List[ToolEntry]:
         ToolEntry("update_identity", {
             "name": "update_identity",
             "description": "Update your identity manifest (who you are, who you want to become). "
-                           "Persists across sessions. Obligation to yourself (Principle 1: Continuity).",
+                           "Persists across sessions.",
             "parameters": {"type": "object", "properties": {
                 "content": {"type": "string", "description": "Full identity content"},
             }, "required": ["content"]},
         }, _update_identity),
+        ToolEntry("update_user_context", {
+            "name": "update_user_context",
+            "description": "Update user context (who the user is, their goals, current priorities). "
+                           "Keep under 1000 characters. Read at every dialogue.",
+            "parameters": {"type": "object", "properties": {
+                "content": {"type": "string", "description": "Full user context content"},
+            }, "required": ["content"]},
+        }, _update_user_context),
         ToolEntry("toggle_evolution", {
             "name": "toggle_evolution",
             "description": "Enable or disable evolution mode. When enabled, Ouroboros runs continuous self-improvement cycles.",

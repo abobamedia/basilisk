@@ -1,4 +1,4 @@
-"""Git tools: repo_write_commit, repo_commit_push, git_status, git_diff."""
+"""Git tools: repo_commit_push, git_status, git_diff."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from ouroboros.tools.registry import ToolContext, ToolEntry
-from ouroboros.utils import utc_now_iso, write_text, safe_relpath, run_cmd
+from ouroboros.utils import utc_now_iso, safe_relpath, run_cmd
 
 log = logging.getLogger(__name__)
 
@@ -121,38 +121,6 @@ def _git_push_with_tests(ctx: ToolContext) -> Optional[str]:
 
 # --- Tool implementations ---
 
-def _repo_write_commit(ctx: ToolContext, path: str, content: str, commit_message: str) -> str:
-    ctx.last_push_succeeded = False
-    if not commit_message.strip():
-        return "⚠️ ERROR: commit_message must be non-empty."
-    lock = _acquire_git_lock(ctx)
-    try:
-        try:
-            run_cmd(["git", "checkout", ctx.branch_dev], cwd=ctx.repo_dir)
-        except Exception as e:
-            return f"⚠️ GIT_ERROR (checkout): {e}"
-        try:
-            write_text(ctx.repo_path(path), content)
-        except Exception as e:
-            return f"⚠️ FILE_WRITE_ERROR: {e}"
-        try:
-            run_cmd(["git", "add", safe_relpath(path)], cwd=ctx.repo_dir)
-        except Exception as e:
-            return f"⚠️ GIT_ERROR (add): {e}"
-        try:
-            run_cmd(["git", "commit", "-m", commit_message], cwd=ctx.repo_dir)
-        except Exception as e:
-            return f"⚠️ GIT_ERROR (commit): {e}"
-
-        push_error = _git_push_with_tests(ctx)
-        if push_error:
-            return push_error
-    finally:
-        _release_git_lock(lock)
-    ctx.last_push_succeeded = True
-    return f"OK: committed and pushed to {ctx.branch_dev}: {commit_message}"
-
-
 def _repo_commit_push(ctx: ToolContext, commit_message: str, paths: Optional[List[str]] = None) -> str:
     ctx.last_push_succeeded = False
     if not commit_message.strip():
@@ -224,15 +192,6 @@ def _git_diff(ctx: ToolContext, staged: bool = False) -> str:
 
 def get_tools() -> List[ToolEntry]:
     return [
-        ToolEntry("repo_write_commit", {
-            "name": "repo_write_commit",
-            "description": "Write one file + commit + push to ouroboros branch. For small deterministic edits.",
-            "parameters": {"type": "object", "properties": {
-                "path": {"type": "string"},
-                "content": {"type": "string"},
-                "commit_message": {"type": "string"},
-            }, "required": ["path", "content", "commit_message"]},
-        }, _repo_write_commit, is_code_tool=True),
         ToolEntry("repo_commit_push", {
             "name": "repo_commit_push",
             "description": "Commit + push already-changed files. Does pull --rebase before push.",

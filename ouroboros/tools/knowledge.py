@@ -4,6 +4,8 @@ Provides read/write/list operations for topic-based knowledge files
 stored in memory/knowledge/ on Drive. Auto-maintains an index file.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path

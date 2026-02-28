@@ -1,14 +1,16 @@
 [project]
 name = "ouroboros"
-version = "6.2.0"
+version = "7.1.0"
 description = "Self-creating agent"
 requires-python = ">=3.10"
+dependencies = ["pytest>=7.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-q --tb=short"
+markers = ["timeout: set test timeout in seconds (e2e tests)"]
 
 [tool.ruff]
 line-length = 120

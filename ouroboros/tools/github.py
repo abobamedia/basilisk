@@ -220,7 +220,7 @@ def get_tools() -> List[ToolEntry]:
     return [
         ToolEntry("list_github_issues", {
             "name": "list_github_issues",
-            "description": "List GitHub issues. Use to check for new tasks, bug reports, or feature requests from the creator or contributors.",
+            "description": "List GitHub issues. Use to check for new tasks, bug reports, or feature requests from the user or contributors.",
             "parameters": {"type": "object", "properties": {
                 "state": {"type": "string", "default": "open", "enum": ["open", "closed", "all"], "description": "Filter by state"},
                 "labels": {"type": "string", "default": "", "description": "Filter by label (comma-separated)"},

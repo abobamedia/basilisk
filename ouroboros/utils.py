@@ -320,3 +320,14 @@ def sanitize_tool_args_for_log(
         except Exception:
             log.debug("Tool argument sanitization failed completely", exc_info=True)
             return {"_error": "sanitization_failed"}
+
+
+def get_budget_remaining(state_data: Dict[str, Any]) -> Optional[float]:
+    """Get budget remaining from state data (OpenRouter API is the single source of truth).
+
+    Returns remaining USD or None if OpenRouter limit not yet fetched.
+    """
+    or_remaining = state_data.get("openrouter_limit_remaining")
+    if or_remaining is not None:
+        return float(or_remaining)
+    return None

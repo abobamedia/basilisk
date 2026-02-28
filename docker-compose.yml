@@ -2,6 +2,8 @@ services:
   ouroboros:
     build: .
     restart: on-failure
+    cpus: 1.0
+    mem_limit: 2g
     env_file: .env
     volumes:
       - ouroboros-data:/data

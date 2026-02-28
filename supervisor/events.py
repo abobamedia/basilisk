@@ -201,35 +201,42 @@ def _handle_restart_request(evt: Dict[str, Any], ctx: Any) -> None:
 def _handle_promote_to_stable(evt: Dict[str, Any], ctx: Any) -> None:
     import subprocess as sp
     try:
-        sp.run(["git", "fetch", "origin"], cwd=str(ctx.REPO_DIR), check=True)
-        sp.run(
-            ["git", "push", "origin", f"{ctx.BRANCH_DEV}:{ctx.BRANCH_STABLE}"],
-            cwd=str(ctx.REPO_DIR), check=True,
-        )
-        new_sha = sp.run(
-            ["git", "rev-parse", f"origin/{ctx.BRANCH_STABLE}"],
+        # Create a stable tag instead of pushing to a stable branch
+        ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+        tag_name = f"stable-{ts}"
+        sha = sp.run(
+            ["git", "rev-parse", "HEAD"],
             cwd=str(ctx.REPO_DIR), capture_output=True, text=True, check=True,
         ).stdout.strip()
+        reason = str(evt.get("reason") or "stable marker")
+        sp.run(
+            ["git", "tag", "-a", tag_name, "-m", f"{tag_name}: {reason}"],
+            cwd=str(ctx.REPO_DIR), check=True,
+        )
+        sp.run(
+            ["git", "push", "origin", tag_name],
+            cwd=str(ctx.REPO_DIR), check=True,
+        )
         st = ctx.load_state()
         if st.get("owner_chat_id"):
             ctx.send_with_budget(
                 int(st["owner_chat_id"]),
-                f"✅ Promoted: {ctx.BRANCH_DEV} → {ctx.BRANCH_STABLE} ({new_sha[:8]})",
+                f"✅ Stable tag created: {tag_name} ({sha[:8]})",
             )
     except Exception as e:
         st = ctx.load_state()
         if st.get("owner_chat_id"):
             ctx.send_with_budget(
                 int(st["owner_chat_id"]),
-                f"❌ Failed to promote to stable: {e}",
+                f"❌ Failed to create stable tag: {e}",
             )
 
 
 def _find_duplicate_task(desc: str, pending: list, running: dict) -> Optional[str]:
     """Check if a semantically similar task already exists using a light LLM call.
 
-    Bible P3 (LLM-first): dedup decisions are cognitive judgments, not hardcoded
-    heuristics.  A cheap/fast model decides whether the new task is a duplicate.
+    Dedup decisions are cognitive judgments, not hardcoded heuristics.
+    A cheap/fast model decides whether the new task is a duplicate.
 
     Returns task_id of the duplicate if found, None otherwise.
     On any error (API, timeout, import) — returns None (accept the task).
@@ -296,7 +303,7 @@ def _handle_schedule_task(evt: Dict[str, Any], ctx: Any) -> None:
         return
 
     if owner_chat_id and desc:
-        # --- Task deduplication (Bible P3: LLM-first, not hardcoded heuristics) ---
+        # --- Task deduplication (LLM-first, not hardcoded heuristics) ---
         from supervisor.queue import PENDING, RUNNING
         dup_id = _find_duplicate_task(desc, PENDING, RUNNING)
         if dup_id:

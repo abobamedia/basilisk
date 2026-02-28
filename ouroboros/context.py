@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ouroboros.utils import (
     utc_now_iso, read_text, clip_text, estimate_tokens, get_git_info,
+    get_budget_remaining,
 )
 from ouroboros.memory import Memory
 
@@ -65,18 +66,22 @@ def _build_runtime_section(env: Any, task: Dict[str, Any]) -> str:
         log.debug("Failed to get git info for context", exc_info=True)
         git_branch, git_sha = "unknown", "unknown"
 
-    # --- Budget calculation ---
+    # --- State + Budget calculation ---
     budget_info = None
+    state_data = {}
     try:
         state_json = _safe_read(env.drive_path("state/state.json"), fallback="{}")
         state_data = json.loads(state_json)
-        spent_usd = float(state_data.get("spent_usd", 0))
-        total_usd = float(os.environ.get("TOTAL_BUDGET", "1"))
-        remaining_usd = total_usd - spent_usd
+        remaining_usd = get_budget_remaining(state_data)
+        or_limit = state_data.get("openrouter_limit")
+        total_usd = float(or_limit) if or_limit is not None else 0.0
+        spent_usd = (total_usd - remaining_usd) if remaining_usd is not None else float(state_data.get("spent_usd", 0))
         budget_info = {"total_usd": total_usd, "spent_usd": spent_usd, "remaining_usd": remaining_usd}
     except Exception:
         log.debug("Failed to calculate budget info for context", exc_info=True)
         pass
+
+    no_approve_mode = bool(state_data.get("no_approve_mode"))
 
     # --- Runtime context JSON ---
     runtime_data = {
@@ -86,6 +91,7 @@ def _build_runtime_section(env: Any, task: Dict[str, Any]) -> str:
         "git_head": git_sha,
         "git_branch": git_branch,
         "task": {"id": task.get("id"), "type": task.get("type")},
+        "no_approve_mode": no_approve_mode,
     }
     if budget_info:
         runtime_data["budget"] = budget_info
@@ -94,7 +100,7 @@ def _build_runtime_section(env: Any, task: Dict[str, Any]) -> str:
 
 
 def _build_memory_sections(memory: Memory) -> List[str]:
-    """Build scratchpad, identity, dialogue summary sections."""
+    """Build scratchpad, identity, user context, dialogue summary sections."""
     sections = []
 
     scratchpad_raw = memory.load_scratchpad()
@@ -103,12 +109,22 @@ def _build_memory_sections(memory: Memory) -> List[str]:
     identity_raw = memory.load_identity()
     sections.append("## Identity\n\n" + clip_text(identity_raw, 80000))
 
+    user_context_raw = memory.load_user_context()
+    sections.append("## User Context\n\n" + clip_text(user_context_raw, 5000))
+
     # Dialogue summary (key moments from chat history)
     summary_path = memory.drive_root / "memory" / "dialogue_summary.md"
     if summary_path.exists():
         summary_text = read_text(summary_path)
         if summary_text.strip():
             sections.append("## Dialogue Summary\n\n" + clip_text(summary_text, 20000))
+
+    # Evolution log (recent self-improvement cycles)
+    evolution_log_path = memory.drive_root / "memory" / "evolution_log.md"
+    if evolution_log_path.exists():
+        evo_text = read_text(evolution_log_path)
+        if evo_text.strip():
+            sections.append("## Evolution Log (recent)\n\n" + clip_text(evo_text, 10000))
 
     return sections
 
@@ -155,7 +171,7 @@ def _build_health_invariants(env: Any) -> str:
     """Build health invariants section for LLM-first self-detection.
 
     Surfaces anomalies as informational text. The LLM (not code) decides
-    what action to take based on what it reads here. (Bible P0+P3)
+    what action to take based on what it reads here.
     """
     checks = []
 
@@ -175,17 +191,20 @@ def _build_health_invariants(env: Any) -> str:
     except Exception:
         pass
 
-    # 2. Budget drift
+    # 2. Budget remaining (OpenRouter ground truth)
     try:
         state_json = read_text(env.drive_path("state/state.json"))
         state_data = json.loads(state_json)
-        if state_data.get("budget_drift_alert"):
-            drift_pct = state_data.get("budget_drift_pct", 0)
-            our = state_data.get("spent_usd", 0)
-            theirs = state_data.get("openrouter_total_usd", 0)
-            checks.append(f"WARNING: BUDGET DRIFT {drift_pct:.1f}% — tracked=${our:.2f} vs OpenRouter=${theirs:.2f}")
+        remaining = get_budget_remaining(state_data)
+        if remaining is not None:
+            if remaining < 10:
+                checks.append(f"CRITICAL: LOW BUDGET — remaining=${remaining:.2f}")
+            elif remaining < 50:
+                checks.append(f"WARNING: LOW BUDGET — remaining=${remaining:.2f}")
+            else:
+                checks.append(f"OK: budget remaining=${remaining:.2f}")
         else:
-            checks.append("OK: budget drift within tolerance")
+            checks.append("OK: budget (not yet fetched)")
     except Exception:
         pass
 
@@ -304,7 +323,7 @@ def build_llm_messages(
     base_prompt = _safe_read(
         env.repo_path("prompts/SYSTEM.md"),
         fallback="You are Ouroboros. Your base prompt could not be loaded."
-    )
+    ).replace("{branch_dev}", env.branch_dev)
     bible_md = _safe_read(env.repo_path("BIBLE.md"))
     readme_md = _safe_read(env.repo_path("README.md"))
     state_json = _safe_read(env.drive_path("state/state.json"), fallback="{}")
@@ -346,7 +365,7 @@ def build_llm_messages(
         _build_runtime_section(env, task),
     ]
 
-    # Health invariants — surfaces anomalies for LLM-first self-detection (Bible P0+P3)
+    # Health invariants — surfaces anomalies for LLM-first self-detection
     health_section = _build_health_invariants(env)
     if health_section:
         dynamic_parts.append(health_section)
@@ -727,10 +746,10 @@ def _compact_tool_call_arguments(tool_name: str, args_json: str) -> Dict[str, An
     """
     # Tools with large content fields that should be stripped
     LARGE_CONTENT_TOOLS = {
-        "repo_write_commit": "content",
         "drive_write": "content",
         "claude_code_edit": "prompt",
         "update_scratchpad": "content",
+        "update_user_context": "content",
     }
 
     try:

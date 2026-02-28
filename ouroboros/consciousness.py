@@ -159,7 +159,12 @@ class BackgroundConsciousness:
     def _check_budget(self) -> bool:
         """Check if background consciousness is within its budget allocation."""
         try:
-            total_budget = float(os.environ.get("TOTAL_BUDGET", "1"))
+            from supervisor.state import load_state
+            st = load_state()
+            or_limit = st.get("openrouter_limit")
+            if or_limit is None:
+                return True  # no limit configured
+            total_budget = float(or_limit)
             if total_budget <= 0:
                 return True
             max_bg = total_budget * (self._bg_budget_pct / 100.0)
@@ -174,6 +179,7 @@ class BackgroundConsciousness:
 
     def _think(self) -> None:
         """One thinking cycle: build context, call LLM, execute tools iteratively."""
+        self._maybe_schedule_arch_review()
         context = self._build_context()
         model = self._model
 
@@ -318,6 +324,12 @@ class BackgroundConsciousness:
             parts.append("## Scratchpad\n\n" + clip_text(
                 read_text(scratchpad_path), 8000))
 
+        # User context
+        user_context_path = self._drive_root / "memory" / "USER_CONTEXT.md"
+        if user_context_path.exists():
+            parts.append("## User Context\n\n" + clip_text(
+                read_text(user_context_path), 2000))
+
         # Dialogue summary for continuity
         summary_path = self._drive_root / "memory" / "dialogue_summary.md"
         if summary_path.exists():
@@ -346,11 +358,10 @@ class BackgroundConsciousness:
             state_path = self._drive_root / "state" / "state.json"
             if state_path.exists():
                 state_data = json.loads(read_text(state_path))
-                total_budget = float(os.environ.get("TOTAL_BUDGET", "1"))
-                spent = float(state_data.get("spent_usd", 0))
-                if total_budget > 0:
-                    remaining = max(0, total_budget - spent)
-                    runtime_lines.append(f"Budget remaining: ${remaining:.2f} / ${total_budget:.2f}")
+                or_remaining = state_data.get("openrouter_limit_remaining")
+                or_limit = state_data.get("openrouter_limit")
+                if or_remaining is not None and or_limit is not None:
+                    runtime_lines.append(f"Budget remaining: ${float(or_remaining):.2f} / ${float(or_limit):.2f}")
         except Exception as e:
             log.debug("Failed to read state for budget info: %s", e)
 
@@ -368,7 +379,7 @@ class BackgroundConsciousness:
     _BG_TOOL_WHITELIST = frozenset({
         # Memory & identity
         "send_owner_message", "schedule_task", "update_scratchpad",
-        "update_identity", "set_next_wakeup",
+        "update_identity", "update_user_context", "set_next_wakeup",
         # Knowledge base
         "knowledge_read", "knowledge_write", "knowledge_list",
         # Read-only tools for awareness
@@ -476,3 +487,33 @@ class BackgroundConsciousness:
         })
 
         return result_str
+
+    # -------------------------------------------------------------------
+    # Architecture review scheduling
+    # -------------------------------------------------------------------
+
+    def _maybe_schedule_arch_review(self) -> None:
+        """Check if it's time for a daily architecture review and inject observation if so."""
+        try:
+            from ouroboros.arch_review import get_block, is_review_due, advance_index
+            from supervisor.state import load_state, save_state
+
+            st = load_state()
+            last_at = st.get("arch_review_last_at", "")
+            current_index = int(st.get("arch_review_index", 0))
+
+            if not is_review_due(last_at):
+                return
+
+            block = get_block(current_index)
+            st["arch_review_last_at"] = utc_now_iso()
+            st["arch_review_index"] = advance_index(current_index)
+            save_state(st)
+            self.inject_observation(
+                f"ARCH REVIEW DUE: Schedule a daily architecture review task for block {current_index}: '{block['name']}'. "
+                f"Use schedule_task tool. Task description: Read the relevant code files, analyze for complexity/simplicity violations per BIBLE.md, "
+                f"identify ONE specific improvement if any, report findings to user via send_owner_message (2-3 sentences max). "
+                f"Do NOT rewrite everything."
+            )
+        except Exception as e:
+            log.warning("Failed to check arch review schedule: %s", e)

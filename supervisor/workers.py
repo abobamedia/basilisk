@@ -34,9 +34,6 @@ DRIVE_ROOT: pathlib.Path = pathlib.Path(os.environ.get("DRIVE_ROOT", "/data"))
 MAX_WORKERS: int = 5
 SOFT_TIMEOUT_SEC: int = 600
 HARD_TIMEOUT_SEC: int = 1800
-HEARTBEAT_STALE_SEC: int = 120
-QUEUE_MAX_RETRIES: int = 1
-TOTAL_BUDGET_LIMIT: float = 0.0
 BRANCH_DEV: str = "ouroboros"
 BRANCH_STABLE: str = "ouroboros-stable"
 
@@ -62,16 +59,16 @@ def _get_ctx():
 
 
 def init(repo_dir: pathlib.Path, drive_root: pathlib.Path, max_workers: int,
-         soft_timeout: int, hard_timeout: int, total_budget_limit: float,
-         branch_dev: str = "ouroboros", branch_stable: str = "ouroboros-stable") -> None:
+         soft_timeout: int, hard_timeout: int,
+         branch_dev: str = "ouroboros", branch_stable: str = "ouroboros-stable",
+         **_kwargs) -> None:
     global REPO_DIR, DRIVE_ROOT, MAX_WORKERS, SOFT_TIMEOUT_SEC, HARD_TIMEOUT_SEC
-    global TOTAL_BUDGET_LIMIT, BRANCH_DEV, BRANCH_STABLE
+    global BRANCH_DEV, BRANCH_STABLE
     REPO_DIR = repo_dir
     DRIVE_ROOT = drive_root
     MAX_WORKERS = max_workers
     SOFT_TIMEOUT_SEC = soft_timeout
     HARD_TIMEOUT_SEC = hard_timeout
-    TOTAL_BUDGET_LIMIT = total_budget_limit
     BRANCH_DEV = branch_dev
     BRANCH_STABLE = branch_stable
 
@@ -112,11 +109,6 @@ QUEUE_SEQ_COUNTER_REF: Dict[str, int] = {"value": 0}
 # Lock for all mutations to PENDING, RUNNING, WORKERS shared collections.
 # Canonical definition lives in queue.py; imported here for use by assign_tasks/kill_workers.
 from supervisor.queue import _queue_lock
-
-
-def get_running_task_ids() -> List[str]:
-    """Return list of task IDs currently being processed by workers."""
-    return [w.busy_task_id for w in WORKERS.values() if w.busy_task_id]
 
 
 # ---------------------------------------------------------------------------
@@ -476,14 +468,14 @@ def respawn_worker(wid: int) -> None:
 
 def assign_tasks() -> None:
     from supervisor import queue
-    from supervisor.state import budget_remaining, EVOLUTION_BUDGET_RESERVE
+    from supervisor.state import openrouter_budget_remaining, EVOLUTION_BUDGET_RESERVE
     with _queue_lock:
         for w in WORKERS.values():
             if w.busy_task_id is None and PENDING:
                 # Find first suitable task (skip over-budget evolution tasks)
                 chosen_idx = None
                 for i, candidate in enumerate(PENDING):
-                    if str(candidate.get("type") or "") == "evolution" and budget_remaining(load_state()) < EVOLUTION_BUDGET_RESERVE:
+                    if str(candidate.get("type") or "") == "evolution" and openrouter_budget_remaining(load_state()) < EVOLUTION_BUDGET_RESERVE:
                         continue
                     chosen_idx = i
                     break
@@ -522,13 +514,8 @@ def ensure_workers_healthy() -> None:
     # Grace period: skip health check right after spawn — workers need time to initialize
     if (time.time() - _LAST_SPAWN_TIME) < _SPAWN_GRACE_SEC:
         return
-    busy_crashes = 0
-    dead_detections = 0
     for wid, w in list(WORKERS.items()):
         if not w.proc.is_alive():
-            dead_detections += 1
-            if w.busy_task_id is not None:
-                busy_crashes += 1
             append_jsonl(
                 DRIVE_ROOT / "logs" / "supervisor.jsonl",
                 {
@@ -539,11 +526,12 @@ def ensure_workers_healthy() -> None:
                     "busy_task_id": w.busy_task_id,
                 },
             )
-            if w.busy_task_id and w.busy_task_id in RUNNING:
-                meta = RUNNING.pop(w.busy_task_id) or {}
-                task = meta.get("task") if isinstance(meta, dict) else None
-                if isinstance(task, dict):
-                    queue.enqueue_task(task, front=True)
+            with _queue_lock:
+                if w.busy_task_id and w.busy_task_id in RUNNING:
+                    meta = RUNNING.pop(w.busy_task_id) or {}
+                    task = meta.get("task") if isinstance(meta, dict) else None
+                    if isinstance(task, dict):
+                        queue.enqueue_task(task, front=True)
             respawn_worker(wid)
             queue.persist_queue_snapshot(reason="worker_respawn_after_crash")
 

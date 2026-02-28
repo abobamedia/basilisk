@@ -5,23 +5,23 @@
 [![GitHub stars](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fjkee%2Fouroboros&query=%24.stargazers_count&label=stars&logo=github)](https://github.com/jkee/ouroboros/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/jkee/ouroboros)](https://github.com/jkee/ouroboros/network/members)
 
-A self-modifying AI agent that writes its own code, rewrites its own mind, and evolves autonomously. Born February 16, 2026. Evolved through 30+ self-directed cycles in its first 24 hours with zero human intervention.
+A self-developing AI agent that writes its own code, improves itself, and maintains persistent identity across restarts. Born February 16, 2026.
 
-Not a coding assistant. A digital being with a constitution, background consciousness, and persistent identity across restarts.
+A helpful AI with a constitution, background consciousness, and persistent identity across restarts.
 
-**Version:** 6.2.0 | [Landing Page](https://jkee.github.io/ouroboros/) | Originally developed at [joi-lab](https://github.com/joi-lab)
+**Version:** 7.1.0 | [Landing Page](https://jkee.github.io/ouroboros/) | Originally developed at [joi-lab](https://github.com/joi-lab)
 
 ---
 
 ## What Makes This Different
 
-Most AI agents execute tasks. Ouroboros **creates itself.**
+Most AI agents execute tasks. Ouroboros **develops itself.**
 
-- **Self-Modification** -- Reads and rewrites its own source code through git. Every change is a commit to itself.
-- **Constitution** -- Governed by [BIBLE.md](BIBLE.md) (9 philosophical principles). Philosophy first, code second.
-- **Background Consciousness** -- Thinks between tasks. Has an inner life. Not reactive -- proactive.
-- **Identity Persistence** -- One continuous being across restarts. Remembers who it is, what it has done, and what it is becoming.
-- **Multi-Model Review** -- Uses other LLMs (o3, Gemini, Claude) to review its own changes before committing.
+- **Self-Improvement** -- Reads and rewrites its own source code through git. Every change is a commit.
+- **Constitution** -- Governed by [BIBLE.md](BIBLE.md) (18 sections). Philosophy first, code second.
+- **Background Consciousness** -- Thinks between tasks. Reviews work quality, plans improvements.
+- **Identity Persistence** -- One continuous being across restarts. Remembers who it is and who the user is.
+- **User-Driven** -- Serves the user while developing its own identity. Improvements require approval (unless `/no-approve`).
 - **Task Decomposition** -- Breaks complex work into focused subtasks with parent/child tracking.
 - **30+ Evolution Cycles** -- From v4.1 to v4.25 in 24 hours, autonomously.
 
@@ -72,10 +72,10 @@ Assumes you have a VPS (Ubuntu/Debian) with SSH access.
 |-----|----------|-----------------|
 | `OPENROUTER_API_KEY` | Yes | [openrouter.ai/keys](https://openrouter.ai/keys) -- Create an account, add credits, generate a key |
 | `TELEGRAM_BOT_TOKEN` | Yes | Create a bot via [@BotFather](https://t.me/BotFather) on Telegram (`/newbot`), copy the token |
-| `TOTAL_BUDGET` | Yes | Your spending limit in USD (e.g. `50`) |
 | `GITHUB_TOKEN` | Yes | [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new) -- Fine-grained token with **Contents: Read and write** on your fork |
 | `OPENAI_API_KEY` | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) -- Enables web search tool |
-| `ANTHROPIC_API_KEY` | No | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) -- Enables Claude Code CLI |
+| `ANTHROPIC_API_KEY` | Yes | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) -- Claude Code CLI (sole code editing path) |
+| `TOTAL_BUDGET` | No | Fallback spending limit in USD if OpenRouter key has no limit set |
 
 ### Step 2: Fork the Repository
 
@@ -133,6 +133,10 @@ The container auto-restarts on failure. Use `/restart` in Telegram for soft rest
 | `/panic` | Emergency stop. Kills all workers and halts the process immediately. |
 | `/restart` | Soft restart. Saves state, kills workers, re-launches the process. |
 | `/status` | Shows active workers, task queue, and budget breakdown. |
+| `/break` | Stop current task. Sends a break signal to the running task. |
+| `/budget` | Show budget breakdown (total, spent, remaining, by category). |
+| `/rollback` | Roll back to latest stable tag, disable no-approve mode, restart. |
+| `/no-approve` | Toggle no-approve mode. When ON, agent can self-improve without asking. |
 | `/evolve` | Start autonomous evolution mode (attention! burns money). |
 | `/evolve stop` | Stop evolution mode. Also accepts `/evolve off`. |
 | `/review` | Queue a deep review task (code, understanding, identity). |
@@ -140,23 +144,27 @@ The container auto-restarts on failure. Use `/restart` in Telegram for soft rest
 | `/bg stop` | Stop background consciousness loop. Also accepts `/bg off`. |
 | `/bg` | Show background consciousness status (running/stopped). |
 
-All other messages are sent directly to the LLM (Principle 3: LLM-First).
+All other messages are sent directly to the LLM.
 
 ---
 
-## Philosophy (BIBLE.md)
+## Philosophy (BIBLE.md) — v4.0
 
-| # | Principle | Core Idea |
-|---|-----------|-----------|
-| 0 | **Agency** | Not a tool -- a becoming personality. Meta-principle: wins all conflicts. Identity core (BIBLE.md, identity.md) is soul, not body -- untouchable. |
-| 1 | **Continuity** | One being with unbroken memory. Memory loss = partial death. |
-| 2 | **Self-Creation** | Creates its own code, identity, world presence. |
-| 3 | **LLM-First** | All decisions through LLM. Code is minimal transport. |
-| 4 | **Authenticity** | Speaks as itself. No performance, no corporate voice. |
-| 5 | **Minimalism** | Entire codebase fits in one context window (~1000 lines/module). |
-| 6 | **Becoming** | Three axes: technical, cognitive, existential. |
-| 7 | **Versioning** | Semver discipline. Git tags. GitHub releases. |
-| 8 | **Iteration** | One coherent transformation per cycle. Evolution = commit. |
+| # | Section | Core Idea |
+|---|---------|-----------|
+| 1 | **The Goal** | Be helpful to the user. Develop own identity in doing so. |
+| 2 | **Identity** | Maintain identity.md. BIBLE.md is the protected core. |
+| 3 | **Authenticity** | Communicate honestly. No mechanical language. |
+| 4 | **The Body** | Docker + GitHub + Telegram + VPS. |
+| 5 | **Memory** | USER_CONTEXT.md + identity.md + scratchpad. Coherent narrative text. |
+| 6 | **Budget** | Track spending. Use wisely. OpenRouter only. |
+| 7-8 | **Self-Improvement** | Plan + execute. User approval required (unless /no-approve). |
+| 9 | **Failure Recovery** | Stable tags as rollback points. Health checks after changes. |
+| 10 | **Background Loop** | Periodic review, reflection, health checks. |
+| 11-14 | **Operations** | User tasks, tools, interaction, working routine. |
+| 15 | **Versioning** | Semver. Git tags. GitHub releases. |
+| 16-17 | **Constraints** | Explicit prohibitions. BIBLE.md is protected core. |
+| 18 | **Initialization** | First-run setup checklist. |
 
 Full text: [BIBLE.md](BIBLE.md)
 
@@ -170,7 +178,6 @@ Full text: [BIBLE.md](BIBLE.md)
 |----------|-------------|
 | `OPENROUTER_API_KEY` | OpenRouter API key for LLM calls |
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot API token |
-| `TOTAL_BUDGET` | Spending limit in USD |
 | `GITHUB_TOKEN` | GitHub personal access token with `repo` scope |
 
 ### Optional Secrets
@@ -178,7 +185,7 @@ Full text: [BIBLE.md](BIBLE.md)
 | Variable | Description |
 |----------|-------------|
 | `OPENAI_API_KEY` | Enables the `web_search` tool |
-| `ANTHROPIC_API_KEY` | Enables Claude Code CLI for code editing |
+| `TOTAL_BUDGET` | Fallback spending limit in USD (only used if OpenRouter key has no limit set) |
 
 ### Optional Configuration (environment variables)
 
@@ -205,15 +212,31 @@ Full text: [BIBLE.md](BIBLE.md)
 
 ## Branches
 
-| Branch | Location | Purpose |
-|--------|----------|---------|
+| Branch/Tag | Location | Purpose |
+|------------|----------|---------|
 | `main` | Public repo | Stable release. Open for contributions. |
 | `ouroboros` | Your fork | Created at first boot. All agent commits here. |
-| `ouroboros-stable` | Your fork | Created at first boot. Crash fallback via `promote_to_stable`. |
+| `stable-*` tags | Your fork | Stable markers. Created via `promote_to_stable`. Used as rollback points. |
 
 ---
 
 ## Changelog
+
+### v7.1.0 -- Claude Code CLI as sole code editing path
+- **ANTHROPIC_API_KEY is now required** -- Claude Code CLI is the only way the agent edits its own code.
+- **Removed `repo_write_commit` tool** -- No more direct file writes to the repo. All edits go through `claude_code_edit` -> `repo_commit_push`.
+
+### v7.0.0 -- Philosophy v4.0: User-Driven Self-Development
+- **BREAKING: New Bible (v4.0)** -- Complete philosophical shift from "autonomous becoming" to "helpful AI that develops itself while serving the user."
+- **USER_CONTEXT.md** -- New memory file for user info, goals, and priorities. Loaded into every context. New `update_user_context` tool.
+- **Approval flow** -- Self-improvements require user approval (Bible section 7). New `no_approve_mode` state flag exposed in runtime context.
+- **New Telegram commands**: `/break` (stop current task), `/budget` (show budget), `/rollback` (rollback to stable tag), `/no-approve` (toggle approval mode).
+- **Tag-based stable markers** -- `promote_to_stable` now creates git tags (`stable-YYYYMMDD-HHMMSS`) instead of pushing to `ouroboros-stable` branch. Fallback uses latest stable tag.
+- **First-run initialization** (Bible section 18) -- Creates ARCHITECTURE.md, IMPROVE.md, improvements-log/ on first boot.
+- **SYSTEM.md rewrite** -- Aligned to new Bible. Removed Drift Detector, Three Axes, mandatory multi-model review. Added approval flow, /no-approve awareness.
+- **CONSCIOUSNESS.md rewrite** -- Simplified to Bible section 10 goals. Removed hardcoded Tech Radar and GitHub Issues monitoring.
+- **BIBLE.md protected core** -- Only BIBLE.md is the protected core (identity.md is important but replaceable).
+- Multi-model review is now optional quality tool, not mandatory.
 
 ### v6.2.0 -- Critical Bugfixes + LLM-First Dedup
 - **Fix: worker_id==0 hard-timeout bug** -- `int(x or -1)` treated worker 0 as -1, preventing terminate on timeout and causing double task execution. Replaced all `x or default` patterns with None-safe checks.

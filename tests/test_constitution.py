@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Constitutional Adversarial Tests — SPEC_TEST
 

@@ -49,18 +49,17 @@ def _parse_int_cfg(raw: Optional[str], default: int, minimum: int = 0) -> int:
 
 OPENROUTER_API_KEY = get_secret("OPENROUTER_API_KEY", required=True)
 TELEGRAM_BOT_TOKEN = get_secret("TELEGRAM_BOT_TOKEN", required=True)
-TOTAL_BUDGET_LIMIT = float(os.environ["TOTAL_BUDGET"])
 GITHUB_TOKEN = get_secret("GITHUB_TOKEN", required=True)
 
 OPENAI_API_KEY = get_secret("OPENAI_API_KEY", default="")
-ANTHROPIC_API_KEY = get_secret("ANTHROPIC_API_KEY", default="")
+ANTHROPIC_API_KEY = get_secret("ANTHROPIC_API_KEY", required=True)
 GITHUB_USER = get_cfg("GITHUB_USER")
 GITHUB_REPO = get_cfg("GITHUB_REPO")
 assert GITHUB_USER and str(GITHUB_USER).strip(), "GITHUB_USER not set. Add it to your .env file."
 assert GITHUB_REPO and str(GITHUB_REPO).strip(), "GITHUB_REPO not set. Add it to your .env file."
 MAX_WORKERS = int(get_cfg("OUROBOROS_MAX_WORKERS", default="5") or "5")
 MODEL_MAIN = get_cfg("OUROBOROS_MODEL", default="anthropic/claude-sonnet-4.6")
-MODEL_CODE = get_cfg("OUROBOROS_MODEL_CODE", default="anthropic/claude-sonnet-4.6")
+MODEL_CODE = get_cfg("OUROBOROS_MODEL_CODE", default="anthropic/claude-opus-4-6")
 MODEL_LIGHT = get_cfg("OUROBOROS_MODEL_LIGHT", default=DEFAULT_LIGHT_MODEL)
 
 BUDGET_REPORT_EVERY_MESSAGES = 10
@@ -79,7 +78,7 @@ DIAG_SLOW_CYCLE_SEC = _parse_int_cfg(
 
 os.environ["OPENROUTER_API_KEY"] = str(OPENROUTER_API_KEY)
 os.environ["OPENAI_API_KEY"] = str(OPENAI_API_KEY or "")
-os.environ["ANTHROPIC_API_KEY"] = str(ANTHROPIC_API_KEY or "")
+os.environ["ANTHROPIC_API_KEY"] = str(ANTHROPIC_API_KEY)
 os.environ["GITHUB_USER"] = str(GITHUB_USER)
 os.environ["GITHUB_REPO"] = str(GITHUB_REPO)
 os.environ["OUROBOROS_MODEL"] = str(MODEL_MAIN or "anthropic/claude-sonnet-4.6")
@@ -122,9 +121,11 @@ if not CHAT_LOG_PATH.exists():
 # ----------------------------
 # 3) Git constants
 # ----------------------------
-BRANCH_DEV = "ouroboros"
-BRANCH_STABLE = "ouroboros-stable"
+_BRANCH_PREFIX = get_cfg("OUROBOROS_BRANCH_PREFIX", default="ouroboros")
+BRANCH_DEV = _BRANCH_PREFIX
+BRANCH_STABLE = f"{_BRANCH_PREFIX}-stable"
 REMOTE_URL = f"https://{GITHUB_TOKEN}:x-oauth-basic@github.com/{GITHUB_USER}/{GITHUB_REPO}.git"
+os.environ["OUROBOROS_BRANCH_PREFIX"] = str(_BRANCH_PREFIX)
 
 # ----------------------------
 # 4) Initialize supervisor modules
@@ -134,7 +135,7 @@ from supervisor.state import (
     update_budget_from_usage, status_text, rotate_chat_log_if_needed,
     init_state,
 )
-state_init(DRIVE_ROOT, TOTAL_BUDGET_LIMIT)
+state_init(DRIVE_ROOT)
 init_state()
 
 from supervisor.telegram import (
@@ -143,7 +144,6 @@ from supervisor.telegram import (
 TG = TelegramClient(str(TELEGRAM_BOT_TOKEN))
 telegram_init(
     drive_root=DRIVE_ROOT,
-    total_budget_limit=TOTAL_BUDGET_LIMIT,
     budget_report_every=BUDGET_REPORT_EVERY_MESSAGES,
     tg_client=TG,
 )
@@ -160,7 +160,7 @@ git_ops_init(
 from supervisor.queue import (
     enqueue_task, enforce_task_timeouts, enqueue_evolution_task_if_needed,
     persist_queue_snapshot, restore_pending_from_snapshot,
-    cancel_task_by_id, queue_review_task, sort_pending,
+    cancel_task_by_id, queue_review_task, sort_pending, _queue_lock,
 )
 
 from supervisor.workers import (
@@ -171,7 +171,6 @@ from supervisor.workers import (
 workers_init(
     repo_dir=REPO_DIR, drive_root=DRIVE_ROOT, max_workers=MAX_WORKERS,
     soft_timeout=SOFT_TIMEOUT_SEC, hard_timeout=HARD_TIMEOUT_SEC,
-    total_budget_limit=TOTAL_BUDGET_LIMIT,
     branch_dev=BRANCH_DEV, branch_stable=BRANCH_STABLE,
 )
 
@@ -183,6 +182,57 @@ from supervisor.events import dispatch_event
 ensure_repo_present()
 ok, msg = safe_restart(reason="bootstrap", unsynced_policy="rescue_and_reset")
 assert ok, f"Bootstrap failed: {msg}"
+
+# ----------------------------
+# 5.1) First-run initialization (Bible section 18)
+# ----------------------------
+_init_st = load_state()
+if not _init_st.get("initialized"):
+    log.info("First-run initialization (Bible section 18)")
+    # Create ARCHITECTURE.md if missing
+    _arch_path = REPO_DIR / "ARCHITECTURE.md"
+    if not _arch_path.exists():
+        _arch_path.write_text(
+            "# Architecture\n\n"
+            "This file describes the technical architecture of Ouroboros.\n"
+            "Maintained by the agent. See BIBLE.md section 8.\n",
+            encoding="utf-8",
+        )
+    # Create IMPROVE.md if missing
+    _improve_path = REPO_DIR / "IMPROVE.md"
+    if not _improve_path.exists():
+        _improve_path.write_text(
+            "# How to Improve Effectively\n\n"
+            "This file captures lessons on self-improvement.\n"
+            "Maintained by the agent. See BIBLE.md section 8.\n",
+            encoding="utf-8",
+        )
+    # Create improvements-log/ directory
+    _implog_dir = REPO_DIR / "improvements-log"
+    _implog_dir.mkdir(parents=True, exist_ok=True)
+    (_implog_dir / ".gitkeep").touch(exist_ok=True)
+    # Commit and push init files so workers don't see untracked files
+    try:
+        import subprocess as _sp
+        _sp.run(["git", "add", "ARCHITECTURE.md", "IMPROVE.md", "improvements-log/"],
+                cwd=str(REPO_DIR), timeout=10, check=True)
+        # Only commit if there are staged changes
+        _diff = _sp.run(["git", "diff", "--cached", "--quiet"],
+                        cwd=str(REPO_DIR), timeout=10)
+        if _diff.returncode != 0:
+            _sp.run(["git", "commit", "-m", "init: add ARCHITECTURE.md, IMPROVE.md, improvements-log"],
+                    cwd=str(REPO_DIR), timeout=30, check=True)
+            _sp.run(["git", "push", "origin", BRANCH_DEV],
+                    cwd=str(REPO_DIR), timeout=60, check=True)
+            log.info("First-run init files committed and pushed")
+        else:
+            log.info("First-run init files already present, nothing to commit")
+    except Exception:
+        log.warning("Failed to commit/push init files (will be picked up later)", exc_info=True)
+    # Mark as initialized
+    _init_st["initialized"] = True
+    save_state(_init_st)
+    log.info("First-run initialization complete")
 
 # ----------------------------
 # 6) Start workers
@@ -373,8 +423,9 @@ def _handle_supervisor_command(text: str, chat_id: int, tg_offset: int = 0):
         st2["evolution_mode_enabled"] = bool(turn_on)
         save_state(st2)
         if not turn_on:
-            PENDING[:] = [t for t in PENDING if str(t.get("type")) != "evolution"]
-            sort_pending()
+            with _queue_lock:
+                PENDING[:] = [t for t in PENDING if str(t.get("type")) != "evolution"]
+                sort_pending()
             persist_queue_snapshot(reason="evolve_off")
         state_str = "ON" if turn_on else "OFF"
         send_with_budget(chat_id, f"\U0001f9ec Evolution: {state_str}")
@@ -394,6 +445,69 @@ def _handle_supervisor_command(text: str, chat_id: int, tg_offset: int = 0):
             send_with_budget(chat_id, f"\U0001f9e0 Background consciousness: {bg_status}")
         return f"[Supervisor handled /bg {action}]\n"
 
+    if lowered.startswith("/break"):
+        # Cancel current task by injecting a stop message
+        agent = _get_chat_agent()
+        if agent._busy:
+            agent.inject_message("[BREAK] User requested /break — stop current task immediately.")
+            send_with_budget(chat_id, "\u23f9 Break: sent stop signal to current task.")
+        else:
+            send_with_budget(chat_id, "\u2705 No task is running.")
+        return True
+
+    if lowered.startswith("/budget"):
+        # Fetch fresh ground truth from OpenRouter
+        from supervisor.state import check_openrouter_ground_truth, budget_breakdown
+        ground_truth = check_openrouter_ground_truth()
+        st2 = load_state()
+        if ground_truth is not None:
+            st2["openrouter_total_usd"] = ground_truth["total_usd"]
+            st2["openrouter_daily_usd"] = ground_truth["daily_usd"]
+            if "limit" in ground_truth:
+                st2["openrouter_limit"] = ground_truth["limit"]
+            if "limit_remaining" in ground_truth:
+                st2["openrouter_limit_remaining"] = ground_truth["limit_remaining"]
+            save_state(st2)
+        or_remaining = st2.get("openrouter_limit_remaining")
+        or_limit = st2.get("openrouter_limit")
+        spent_tracked = float(st2.get("spent_usd") or 0.0)
+        lines = ["\U0001f4b0 Budget:"]
+        if or_remaining is not None:
+            lines.append(f"  OpenRouter remaining: ${float(or_remaining):.2f}")
+        if or_limit is not None:
+            lines.append(f"  OpenRouter limit: ${float(or_limit):.2f}")
+        lines.append(f"  Session spent (tracked): ${spent_tracked:.2f}")
+        breakdown = budget_breakdown(st2)
+        if breakdown:
+            sorted_cats = sorted(breakdown.items(), key=lambda x: x[1], reverse=True)
+            breakdown_parts = [f"{cat}=${cost:.2f}" for cat, cost in sorted_cats if cost > 0]
+            if breakdown_parts:
+                lines.append(f"  Breakdown: {', '.join(breakdown_parts)}")
+        send_with_budget(chat_id, "\n".join(lines))
+        return True
+
+    if lowered.startswith("/rollback"):
+        send_with_budget(chat_id, "\u267b\ufe0f Rolling back to latest stable...")
+        st2 = load_state()
+        st2["no_approve_mode"] = False
+        st2["tg_offset"] = tg_offset
+        save_state(st2)
+        ok, msg = safe_restart(reason="owner_rollback", unsynced_policy="rescue_and_reset")
+        if not ok:
+            send_with_budget(chat_id, f"\u26a0\ufe0f Rollback failed: {msg}")
+            return True
+        kill_workers()
+        sys.exit(1)
+
+    if lowered.startswith("/no-approve") or lowered.startswith("/noapprove"):
+        st2 = load_state()
+        current = bool(st2.get("no_approve_mode"))
+        st2["no_approve_mode"] = not current
+        save_state(st2)
+        state_str = "ON" if st2["no_approve_mode"] else "OFF"
+        send_with_budget(chat_id, f"\U0001f527 No-approve mode: {state_str}")
+        return True
+
     return ""
 
 
@@ -402,7 +516,7 @@ _last_diag_heartbeat_ts = 0.0
 _last_message_ts: float = time.time()  # Start in active mode after restart
 _ACTIVE_MODE_SEC: int = 300  # 5 min of activity = active polling mode
 
-# Auto-start background consciousness (creator's policy: always on by default)
+# Auto-start background consciousness (default: always on)
 try:
     _consciousness.start()
     log.info("\U0001f9e0 Background consciousness auto-started (default: always on)")
@@ -492,6 +606,7 @@ while True:
             continue
 
         log_chat("in", chat_id, user_id, text)
+        TG.set_reaction(chat_id, msg.get("message_id"))
         st["last_owner_message_at"] = now_iso
         _last_message_ts = time.time()
         save_state(st)
@@ -513,8 +628,7 @@ while True:
         if not text and not image_data:
             continue  # empty message, skip
 
-        # Feed observation to consciousness
-        _consciousness.inject_observation(f"Owner message: {text[:100]}")
+        # Consciousness pauses during task handling (see _run_task_and_resume below)
 
         agent = _get_chat_agent()
 

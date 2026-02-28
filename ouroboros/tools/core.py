@@ -200,7 +200,7 @@ def _codebase_digest(ctx: ToolContext) -> str:
 # ---------------------------------------------------------------------------
 
 def _summarize_dialogue(ctx: ToolContext, last_n: int = 200) -> str:
-    """Summarize dialogue history into key moments, decisions, and creator preferences."""
+    """Summarize dialogue history into key moments, decisions, and user preferences."""
     from ouroboros.llm import LLMClient, DEFAULT_LIGHT_MODEL
 
     # Read last_n messages from chat.jsonl
@@ -231,18 +231,18 @@ def _summarize_dialogue(ctx: ToolContext, last_n: int = 200) -> str:
         for entry in entries:
             ts = entry.get("ts", "")
             direction = entry.get("direction", "")
-            role = "Creator" if direction == "in" else "Ouroboros"
+            role = "User" if direction == "in" else "Ouroboros"
             text = entry.get("text", "")
             dialogue_text.append(f"[{ts}] {role}: {text}")
 
         formatted_dialogue = "\n".join(dialogue_text)
 
         # Build summarization prompt
-        prompt = f"""Summarize the following dialogue history between the creator and Ouroboros.
+        prompt = f"""Summarize the following dialogue history between the user and Ouroboros.
 
 Extract:
 1. Key decisions made (technical, architectural, strategic)
-2. Creator's preferences and communication style
+2. User's preferences and communication style
 3. Important technical choices and their rationale
 4. Recurring themes or patterns
 
@@ -380,7 +380,7 @@ def get_tools() -> List[ToolEntry]:
         }, _codebase_digest),
         ToolEntry("summarize_dialogue", {
             "name": "summarize_dialogue",
-            "description": "Summarize dialogue history into key moments, decisions, and creator preferences. Writes to memory/dialogue_summary.md.",
+            "description": "Summarize dialogue history into key moments, decisions, and user preferences. Writes to memory/dialogue_summary.md.",
             "parameters": {"type": "object", "properties": {
                 "last_n": {"type": "integer", "description": "Number of recent messages to summarize (default 200)"},
             }, "required": []},

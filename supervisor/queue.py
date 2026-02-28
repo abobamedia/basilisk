@@ -18,8 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from supervisor.state import (
     load_state, save_state, append_jsonl, atomic_write_text,
-    QUEUE_SNAPSHOT_PATH, budget_pct, TOTAL_BUDGET_LIMIT,
-    budget_remaining, EVOLUTION_BUDGET_RESERVE,
+    QUEUE_SNAPSHOT_PATH, openrouter_budget_remaining, EVOLUTION_BUDGET_RESERVE,
 )
 from supervisor.telegram import send_with_budget
 
@@ -403,7 +402,7 @@ def enqueue_evolution_task_if_needed() -> None:
         )
         return
 
-    remaining = budget_remaining(st)
+    remaining = openrouter_budget_remaining(st)
     if remaining < EVOLUTION_BUDGET_RESERVE:
         st["evolution_mode_enabled"] = False
         save_state(st)

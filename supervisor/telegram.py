@@ -22,16 +22,14 @@ log = logging.getLogger(__name__)
 # Module-level config (set via init())
 # ---------------------------------------------------------------------------
 DRIVE_ROOT = None  # pathlib.Path
-TOTAL_BUDGET_LIMIT: float = 0.0
 BUDGET_REPORT_EVERY_MESSAGES: int = 10
 _TG: Optional["TelegramClient"] = None
 
 
-def init(drive_root, total_budget_limit: float, budget_report_every: int,
-         tg_client: "TelegramClient") -> None:
-    global DRIVE_ROOT, TOTAL_BUDGET_LIMIT, BUDGET_REPORT_EVERY_MESSAGES, _TG
+def init(drive_root, budget_report_every: int,
+         tg_client: "TelegramClient", **_kwargs) -> None:
+    global DRIVE_ROOT, BUDGET_REPORT_EVERY_MESSAGES, _TG
     DRIVE_ROOT = drive_root
-    TOTAL_BUDGET_LIMIT = total_budget_limit
     BUDGET_REPORT_EVERY_MESSAGES = budget_report_every
     _TG = tg_client
 
@@ -104,6 +102,24 @@ class TelegramClient:
             return r.status_code == 200
         except Exception:
             log.debug("Failed to send chat action to chat_id=%d", chat_id, exc_info=True)
+            return False
+
+    def set_reaction(self, chat_id: int, message_id: int, emoji: str = "👀") -> bool:
+        """Set a reaction on a message. Best-effort, no retries."""
+        try:
+            r = requests.post(
+                f"{self.base}/setMessageReaction",
+                json={
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "reaction": [{"type": "emoji", "emoji": emoji}],
+                    "is_big": False,
+                },
+                timeout=5,
+            )
+            return r.status_code == 200
+        except Exception:
+            log.debug("Failed to set reaction on message_id=%d", message_id, exc_info=True)
             return False
 
     def send_photo(self, chat_id: int, photo_bytes: bytes,
@@ -375,12 +391,18 @@ def _send_markdown_telegram(chat_id: int, text: str) -> Tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def _format_budget_line(st: Dict[str, Any]) -> str:
-    spent = float(st.get("spent_usd") or 0.0)
-    total = float(TOTAL_BUDGET_LIMIT or 0.0)
-    pct = (spent / total * 100.0) if total > 0 else 0.0
+    or_remaining = st.get("openrouter_limit_remaining")
+    or_limit = st.get("openrouter_limit")
     sha = (st.get("current_sha") or "")[:8]
     branch = st.get("current_branch") or "?"
-    return f"—\nBudget: ${spent:.4f} / ${total:.2f} ({pct:.2f}%) | {branch}@{sha}"
+    if or_remaining is not None and or_limit is not None:
+        remaining = float(or_remaining)
+        limit = float(or_limit)
+        spent = limit - remaining
+        pct = (spent / limit * 100.0) if limit > 0 else 0.0
+        return f"—\nBudget: ${spent:.4f} / ${limit:.2f} ({pct:.2f}%) | {branch}@{sha}"
+    spent = float(st.get("spent_usd") or 0.0)
+    return f"—\nBudget: ${spent:.4f} (tracked) | {branch}@{sha}"
 
 
 def budget_line(force: bool = False) -> str:

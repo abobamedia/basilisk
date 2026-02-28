@@ -55,8 +55,11 @@ def git_capture(cmd: List[str]) -> Tuple[int, str, str]:
 
 def ensure_repo_present() -> None:
     if not (REPO_DIR / ".git").exists():
-        subprocess.run(["rm", "-rf", str(REPO_DIR)], check=False)
-        subprocess.run(["git", "clone", REMOTE_URL, str(REPO_DIR)], check=True)
+        # Init git in-place (don't rm -rf /app — we're running from it!)
+        REPO_DIR.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=str(REPO_DIR), check=True)
+        subprocess.run(["git", "remote", "add", "origin", REMOTE_URL],
+                        cwd=str(REPO_DIR), check=True)
     else:
         subprocess.run(["git", "remote", "set-url", "origin", REMOTE_URL],
                         cwd=str(REPO_DIR), check=True)
@@ -406,7 +409,7 @@ def safe_restart(
     if t["ok"]:
         return True, f"OK: {BRANCH_DEV}"
 
-    # Dev branch failed import — log the failure and fall back to stable
+    # Dev branch failed import — log the failure and fall back to latest stable tag
     append_jsonl(
         DRIVE_ROOT / "logs" / "supervisor.jsonl",
         {
@@ -420,14 +423,36 @@ def safe_restart(
         },
     )
 
-    # Fallback to stable
+    # Fallback: find latest stable tag and reset to it
+    rc_tag, tag_out, tag_err = git_capture(
+        ["git", "tag", "--list", "stable-*", "--sort=-creatordate"]
+    )
+    latest_tag = ""
+    if rc_tag == 0 and tag_out.strip():
+        latest_tag = tag_out.strip().splitlines()[0].strip()
+
+    if latest_tag:
+        log.info("Falling back to stable tag: %s", latest_tag)
+        subprocess.run(
+            ["git", "reset", "--hard", latest_tag],
+            cwd=str(REPO_DIR), check=True,
+        )
+        deps_ok_s, deps_msg_s = sync_runtime_dependencies(reason=f"{reason}_fallback_tag")
+        if not deps_ok_s:
+            return False, f"Failed deps after fallback to {latest_tag}: {deps_msg_s}"
+        t2 = import_test()
+        if t2["ok"]:
+            return True, f"OK: fell back to tag {latest_tag}"
+        return False, f"Tag {latest_tag} also failed import"
+
+    # No stable tag found — try legacy ouroboros-stable branch
     ok_s, err_s = checkout_and_reset(
         BRANCH_STABLE,
         reason=f"{reason}_fallback_stable",
         unsynced_policy="rescue_and_reset",
     )
     if not ok_s:
-        return False, f"Failed checkout {BRANCH_STABLE}: {err_s}"
+        return False, f"No stable tags found, failed checkout {BRANCH_STABLE}: {err_s}"
 
     deps_ok_s, deps_msg_s = sync_runtime_dependencies(reason=f"{reason}_fallback_stable")
     if not deps_ok_s:
@@ -437,5 +462,4 @@ def safe_restart(
     if t2["ok"]:
         return True, f"OK: fell back to {BRANCH_STABLE}"
 
-    # Both branches failed
-    return False, f"Both branches failed import (dev and stable)"
+    return False, "All fallbacks failed import (dev, stable tags, stable branch)"

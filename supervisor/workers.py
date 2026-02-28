@@ -260,6 +260,26 @@ def auto_resume_after_restart() -> None:
             if not content_lines:
                 return
 
+        # Persistent crash counter — stop infinite restart loops
+        crash_counter_path = DRIVE_ROOT / "state" / "auto_resume_counter.json"
+        crash_count = 0
+        try:
+            if crash_counter_path.exists():
+                crash_count = json.loads(crash_counter_path.read_text(encoding="utf-8")).get("count", 0)
+        except Exception:
+            pass
+        crash_count += 1
+        try:
+            crash_counter_path.parent.mkdir(parents=True, exist_ok=True)
+            crash_counter_path.write_text(json.dumps({"count": crash_count}), encoding="utf-8")
+        except Exception:
+            pass
+        if crash_count >= 3:
+            log.error("Auto-resume crash counter reached %d — writing panic flag, skipping resume.", crash_count)
+            panic_flag.parent.mkdir(parents=True, exist_ok=True)
+            panic_flag.write_text("auto-resume crash loop detected", encoding="utf-8")
+            return
+
         # Auto-resume: inject synthetic message
         time.sleep(2)  # Let everything initialize
         agent = _get_chat_agent()

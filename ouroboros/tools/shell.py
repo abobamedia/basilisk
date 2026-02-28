@@ -384,7 +384,9 @@ def _claude_code_edit(ctx: ToolContext, prompt: str, cwd: str = "",
 
         full_prompt = (
             f"STRICT: Only modify files inside {work_dir}. "
-            f"Git branch: {ctx.branch_dev}. Do NOT commit or push.\n\n"
+            f"Git branch: {ctx.branch_dev}. Do NOT commit or push.\n"
+            f"CRITICAL: You MUST NOT modify, delete, rename or rewrite these protected core files: "
+            f"ouroboros/agent.py, ouroboros/loop.py, ouroboros/llm.py, ouroboros/safety.py, server.py, BIBLE.md\n\n"
             f"{prompt}"
         )
 
@@ -495,7 +497,9 @@ def _bonsai_code_edit(ctx: ToolContext, prompt: str, cwd: str = "",
 
         full_prompt = (
             f"STRICT: Only modify files inside {work_dir}. "
-            f"Git branch: {ctx.branch_dev}. Do NOT commit or push.\n\n"
+            f"Git branch: {ctx.branch_dev}. Do NOT commit or push.\n"
+            f"CRITICAL: You MUST NOT modify, delete, rename or rewrite these protected core files: "
+            f"ouroboros/agent.py, ouroboros/loop.py, ouroboros/llm.py, ouroboros/safety.py, server.py, BIBLE.md\n\n"
             f"{prompt}"
         )
 

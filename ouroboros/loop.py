@@ -1005,12 +1005,17 @@ def _call_llm_with_retry(
 
         except Exception as e:
             last_error = e
+            err_str = str(e).lower()
             append_jsonl(drive_logs / "events.jsonl", {
                 "ts": utc_now_iso(), "type": "llm_api_error",
                 "task_id": task_id,
                 "round": round_idx, "attempt": attempt + 1,
                 "model": model, "error": repr(e),
             })
+            # Provider-level failures: return None immediately to trigger fallback
+            if any(k in err_str for k in ("degraded", "unterminated string", "503", "unavailable")):
+                log.warning("Provider-level failure (%s), skipping remaining retries → fallback", e)
+                return None, 0.0
             if attempt < max_retries - 1:
                 time.sleep(min(2 ** attempt * 2, 30))
 

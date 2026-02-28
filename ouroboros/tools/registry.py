@@ -190,11 +190,13 @@ class ToolRegistry:
             
         # --- Hardcoded Sandbox Protections ---
         # Prevent physical deletion or overwriting of the core identity and safety mechanisms
-        if name in ("run_shell", "claude_code_edit", "repo_write_commit", "repo_commit", "data_write"):
+        _SANDBOX_PROTECTED = {"bible.md", "safety.py", "agent.py", "loop.py", "llm.py", "server.py"}
+        if name in ("run_shell", "claude_code_edit", "bonsai_code_edit", "repo_write_commit", "repo_commit", "data_write"):
             args_str = str(args).lower()
-            if "bible.md" in args_str or "safety.py" in args_str:
-                if "rm " in args_str or "delete" in args_str or "trash" in args_str:
-                    return "⚠️ CRITICAL SAFETY_VIOLATION: Hardcoded sandbox prevents deletion or modification of BIBLE.md and safety.py."
+            for _pf in _SANDBOX_PROTECTED:
+                if _pf in args_str:
+                    if "rm " in args_str or "delete" in args_str or "trash" in args_str or "truncate" in args_str:
+                        return f"⚠️ CRITICAL SAFETY_VIOLATION: Hardcoded sandbox prevents deletion of {_pf}."
                     
         # --- LLM Safety Supervisor ---
         from ouroboros.safety import check_safety

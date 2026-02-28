@@ -196,15 +196,29 @@ class BackgroundConsciousness:
                     break
                 _provider_light = os.environ.get("PROVIDER_LIGHT", "openrouter")
                 _use_local_light = _provider_light == "local" or os.environ.get("USE_LOCAL_LIGHT", "").lower() in ("true", "1")
-                msg, usage = self._llm.chat(
-                    messages=messages,
-                    model=model,
-                    tools=tools,
-                    reasoning_effort="low",
-                    max_tokens=2048,
-                    use_local=_use_local_light,
-                    provider_name=_provider_light,
-                )
+                try:
+                    msg, usage = self._llm.chat(
+                        messages=messages,
+                        model=model,
+                        tools=tools,
+                        reasoning_effort="low",
+                        max_tokens=2048,
+                        use_local=_use_local_light,
+                        provider_name=_provider_light,
+                    )
+                except Exception as _chat_err:
+                    _err_str = str(_chat_err).lower()
+                    if any(k in _err_str for k in ("degraded", "unavailable", "503", "unterminated")):
+                        _fb_provider = os.environ.get("PROVIDER_FALLBACK", "openrouter")
+                        _fb_model = os.environ.get("OUROBOROS_MODEL_FALLBACK", model)
+                        log.warning("Consciousness primary failed (%s), trying fallback %s/%s", _chat_err, _fb_provider, _fb_model)
+                        msg, usage = self._llm.chat(
+                            messages=messages, model=_fb_model, tools=tools,
+                            reasoning_effort="low", max_tokens=2048,
+                            provider_name=_fb_provider,
+                        )
+                    else:
+                        raise
                 cost = float(usage.get("cost") or 0)
                 total_cost += cost
                 self._bg_spent_usd += cost

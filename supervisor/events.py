@@ -168,6 +168,14 @@ def _handle_task_done(evt: Dict[str, Any], ctx: Any) -> None:
                 },
             )
 
+    # Reset auto-resume crash counter on any successful task completion
+    try:
+        _crash_counter = ctx.DRIVE_ROOT / "state" / "auto_resume_counter.json"
+        if _crash_counter.exists():
+            _crash_counter.write_text('{"count": 0}', encoding="utf-8")
+    except Exception:
+        pass
+
     if task_id:
         ctx.RUNNING.pop(str(task_id), None)
     if wid in ctx.WORKERS and ctx.WORKERS[wid].busy_task_id == task_id:

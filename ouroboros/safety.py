@@ -23,7 +23,7 @@ from supervisor.state import update_budget_from_usage
 log = logging.getLogger(__name__)
 
 CHECKED_TOOLS = frozenset([
-    "run_shell", "claude_code_edit", "repo_write_commit", "repo_commit", "data_write",
+    "run_shell", "claude_code_edit", "bonsai_code_edit", "repo_write_commit", "repo_commit", "data_write",
 ])
 
 

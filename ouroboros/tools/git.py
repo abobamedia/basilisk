@@ -189,6 +189,36 @@ def _check_protected_file(path: str, content: str) -> Optional[str]:
     return None
 
 
+def _validate_protected_files_in_staging(ctx: "ToolContext") -> Optional[str]:
+    """Check staged changes don't gut protected files. Returns error or None."""
+    try:
+        diff_stat = run_cmd(["git", "diff", "--cached", "--numstat"], cwd=ctx.repo_dir)
+    except Exception:
+        return None
+    for line in diff_stat.strip().splitlines():
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        path = parts[2]
+        import pathlib as _pl
+        norm = str(_pl.PurePosixPath(path))
+        min_lines = _PROTECTED_FILES.get(norm)
+        if min_lines is None:
+            continue
+        try:
+            staged = run_cmd(["git", "show", f":{norm}"], cwd=ctx.repo_dir)
+            staged_lines = staged.count("\n") + (1 if staged and not staged.endswith("\n") else 0)
+            if staged_lines < min_lines:
+                run_cmd(["git", "checkout", "--", norm], cwd=ctx.repo_dir)
+                return (
+                    f"⚠️ PROTECTED_FILE_VIOLATION: {norm} would be reduced to {staged_lines} lines "
+                    f"(min {min_lines}). Staged change reverted."
+                )
+        except Exception:
+            continue
+    return None
+
+
 # --- Tool implementations ---
 
 def _repo_write_commit(ctx: ToolContext, path: str, content: str, commit_message: str, skip_tests: bool = False) -> str:
@@ -273,6 +303,10 @@ def _repo_commit_push(ctx: ToolContext, commit_message: str, paths: Optional[Lis
             return f"⚠️ GIT_ERROR (status): {e}"
         if not status.strip():
             return "⚠️ GIT_NO_CHANGES: nothing to commit."
+        prot_err = _validate_protected_files_in_staging(ctx)
+        if prot_err:
+            run_cmd(["git", "reset", "HEAD"], cwd=ctx.repo_dir)
+            return prot_err
         try:
             run_cmd(["git", "commit", "-m", commit_message], cwd=ctx.repo_dir)
         except Exception as e:

@@ -300,12 +300,16 @@ def _find_duplicate_task(desc: str, pending: list, running: dict) -> Optional[st
     try:
         from ouroboros.llm import LLMClient, DEFAULT_LIGHT_MODEL
         light_model = os.environ.get("OUROBOROS_MODEL_LIGHT") or DEFAULT_LIGHT_MODEL
+        _provider_light = os.environ.get("PROVIDER_LIGHT", "openrouter")
+        _use_local = _provider_light == "local"
         client = LLMClient()
         resp_msg, usage = client.chat(
             messages=[{"role": "user", "content": prompt}],
             model=light_model,
             reasoning_effort="low",
             max_tokens=50,
+            use_local=_use_local,
+            provider_name=_provider_light,
         )
         answer = (resp_msg.get("content") or "NONE").strip()
         if answer.upper() == "NONE" or not answer:

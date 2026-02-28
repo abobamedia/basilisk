@@ -445,9 +445,10 @@ class LLMClient:
             kwargs["model"] = "local-model"
             kwargs["max_tokens"] = self._local_max_tokens(max_tokens)
 
-        # Codex (OpenClaw) gateway: map to openclaw agent model
-        if provider_name == "codex":
-            kwargs["model"] = "openclaw:main"
+        # Codex (OpenClaw) gateway: pass through model name as-is
+        # OpenClaw accepts "openai-codex/gpt-5.3-codex" etc. directly
+        if provider_name == "codex" and not model.startswith("openai-codex/"):
+            kwargs["model"] = "openclaw:main"  # fallback for unrecognized models
 
         # OpenRouter-specific: reasoning + provider routing
         if provider.supports_reasoning:

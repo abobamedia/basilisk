@@ -615,6 +615,8 @@ def run_llm_loop(
     event_queue: Optional[queue.Queue] = None,
     initial_effort: str = "medium",
     drive_root: Optional[pathlib.Path] = None,
+    is_direct_chat: bool = False,
+    task_depth: int = 0,
 ) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
     """
     Core LLM-with-tools loop.
@@ -628,13 +630,18 @@ def run_llm_loop(
 
     Returns: (final_text, accumulated_usage, llm_trace)
     """
-    # LLM-first: single default model, LLM switches via tool if needed
-    active_model = llm.default_model()
-    active_effort = initial_effort
-    active_provider = os.environ.get("PROVIDER_MAIN", "openrouter")
-    active_use_local = active_provider == "local" or os.environ.get("USE_LOCAL_MAIN", "").lower() in ("true", "1")
-    if active_use_local:
-        active_provider = "local"
+    # Smart routing: pick model/provider based on task characteristics
+    from ouroboros.router import route_task
+    _route = route_task(
+        task_type=task_type,
+        is_direct_chat=is_direct_chat,
+        budget_remaining=budget_remaining_usd if budget_remaining_usd is not None else 999.0,
+        depth=task_depth,
+    )
+    active_model = _route.model
+    active_effort = _route.effort if initial_effort == "medium" else initial_effort
+    active_provider = _route.provider
+    active_use_local = active_provider == "local"
 
     llm_trace: Dict[str, Any] = {"assistant_notes": [], "tool_calls": []}
     accumulated_usage: Dict[str, Any] = {}

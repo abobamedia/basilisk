@@ -467,6 +467,8 @@ class OuroborosAgent:
                     event_queue=self._event_queue,
                     initial_effort=initial_effort,
                     drive_root=self.env.drive_root,
+                    is_direct_chat=bool(task.get("_is_direct_chat")),
+                    task_depth=int(task.get("depth", 0)),
                 )
             except Exception as e:
                 tb = traceback.format_exc()

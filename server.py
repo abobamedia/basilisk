@@ -842,11 +842,19 @@ async def lifespan(app):
     _event_loop = asyncio.get_running_loop()
 
     settings = load_settings()
+    # Merge env vars into settings (Docker .env → settings dict)
+    for k in _SETTINGS_DEFAULTS:
+        env_val = os.environ.get(k, "")
+        if env_val and not settings.get(k):
+            settings[k] = env_val
     # Start supervisor if ANY LLM provider API key is configured
-    _has_any_key = any(settings.get(k) for k in (
-        "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY", "BONSAI_API_KEY", "OPENCLAW_API_TOKEN",
-    ))
+    _has_any_key = any(
+        settings.get(k) or os.environ.get(k, "")
+        for k in (
+            "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY", "BONSAI_API_KEY", "OPENCLAW_API_TOKEN",
+        )
+    )
     if _has_any_key:
         threading.Thread(target=_run_supervisor, args=(settings,), daemon=True).start()
     else:

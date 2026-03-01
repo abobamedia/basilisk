@@ -257,7 +257,12 @@ def main():
     log.info("openclaw path: %s", subprocess.run(
         ["which", "openclaw"], capture_output=True, text=True
     ).stdout.strip() or "NOT FOUND")
-    log.info("Running as user: %s", os.environ.get("USER", os.getlogin()))
+    import pwd
+    try:
+        username = pwd.getpwuid(os.getuid()).pw_name
+    except Exception:
+        username = os.environ.get("USER", str(os.getuid()))
+    log.info("Running as user: %s", username)
     log.info("=" * 60)
 
     server = ThreadedHTTPServer((HOST, PORT), ProxyHandler)

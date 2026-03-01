@@ -22,7 +22,8 @@ from typing import Optional
 HOME = pathlib.Path.home()
 APP_ROOT = HOME / "Ouroboros"
 REPO_DIR = APP_ROOT / "repo"
-DATA_DIR = APP_ROOT / "data"
+# Respect OUROBOROS_DATA_DIR env var (Docker sets this to /data)
+DATA_DIR = pathlib.Path(os.environ.get("OUROBOROS_DATA_DIR", str(APP_ROOT / "data")))
 SETTINGS_PATH = DATA_DIR / "settings.json"
 PID_FILE = APP_ROOT / "ouroboros.pid"
 PORT_FILE = DATA_DIR / "state" / "server_port"

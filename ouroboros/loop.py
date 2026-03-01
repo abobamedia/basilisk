@@ -756,7 +756,7 @@ def run_llm_loop(
                     fallback_provider = "local"
                 primary_tag = f" ({active_provider})" if active_provider != "openrouter" else ""
                 fallback_tag = f" ({fallback_provider})" if fallback_provider != "openrouter" else ""
-                emit_progress(f"⚡ Fallback: {active_model}{primary_tag} → {fallback_model}{fallback_tag} after empty response")
+                log.warning("Fallback: %s%s → %s%s after empty response", active_model, primary_tag, fallback_model, fallback_tag)
                 msg, fallback_cost = _call_llm_with_retry(
                     llm, messages, fallback_model, tool_schemas, active_effort,
                     max_retries, drive_logs, task_id, round_idx, event_queue, accumulated_usage, task_type,

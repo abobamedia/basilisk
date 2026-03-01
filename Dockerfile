@@ -19,8 +19,19 @@ RUN pip install --no-cache-dir \
 
 COPY . .
 
+# Git config for auto-rescue commits inside container
+RUN git config --global user.email "ouroboros@basilisk" && \
+    git config --global user.name "Ouroboros" && \
+    git config --global --add safe.directory /app
+
 # Data volume for persistent state
 VOLUME /data
+
+# Seed memory files to avoid startup warnings
+RUN mkdir -p /data/memory /data/state /data/logs && \
+    echo "# Ouroboros Server Instance\nI am Ouroboros running on a remote VPS.\nMy owner communicates in Russian." > /data/memory/identity.md && \
+    echo "# Working Memory" > /data/memory/scratchpad.md && \
+    echo "# Environment\n- Platform: Linux VPS (Docker)\n- Owner language: Russian" > /data/memory/WORLD.md
 
 ENV OUROBOROS_DATA_DIR=/data \
     OUROBOROS_REPO_DIR=/app \

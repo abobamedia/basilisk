@@ -75,6 +75,8 @@ SETTINGS_DEFAULTS = {
     "USE_LOCAL_CODE": False,
     "USE_LOCAL_LIGHT": False,
     "USE_LOCAL_FALLBACK": False,
+    # Telegram (server mode)
+    "TELEGRAM_BOT_TOKEN": "",
 }
 
 
@@ -173,6 +175,7 @@ def apply_settings_to_env(settings: dict) -> None:
         "LOCAL_MODEL_CHAT_FORMAT",
         "USE_LOCAL_MAIN", "USE_LOCAL_CODE", "USE_LOCAL_LIGHT", "USE_LOCAL_FALLBACK",
         "PROVIDER_MAIN", "PROVIDER_CODE", "PROVIDER_LIGHT", "PROVIDER_FALLBACK",
+        "TELEGRAM_BOT_TOKEN",
     ]
     for k in env_keys:
         val = settings.get(k)

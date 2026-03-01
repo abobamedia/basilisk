@@ -1,0 +1,18 @@
+services:
+  ouroboros:
+    build: .
+    restart: on-failure:5
+    env_file: .env
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    volumes:
+      - ouroboros-data:/data
+    ports:
+      - "8765:8765"
+    environment:
+      - OUROBOROS_MAX_WORKERS=2
+      - OUROBOROS_HOST=0.0.0.0
+
+volumes:
+  ouroboros-data:

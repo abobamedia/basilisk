@@ -127,12 +127,19 @@ def _run_supervisor(settings: dict) -> None:
     _apply_settings_to_env(settings)
 
     try:
+        _tg_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip() or settings.get("TELEGRAM_BOT_TOKEN", "").strip()
+
+        if _tg_token:
+            from supervisor.telegram import TelegramChatBridge
+            bridge = TelegramChatBridge(token=_tg_token)
+            log.info("Using Telegram bridge (bot token set).")
+        else:
+            from supervisor.message_bus import LocalChatBridge
+            bridge = LocalChatBridge()
+            bridge._broadcast_fn = broadcast_ws_sync
+            log.info("Using local WebSocket bridge (no Telegram token).")
+
         from supervisor.message_bus import init as bus_init
-        from supervisor.message_bus import LocalChatBridge
-
-        bridge = LocalChatBridge()
-        bridge._broadcast_fn = broadcast_ws_sync
-
         from ouroboros.utils import set_log_sink
         set_log_sink(bridge.push_log)
 
@@ -911,7 +918,8 @@ if __name__ == "__main__":
         log.info("Port %d busy, using %d instead", PORT, actual_port)
     _write_port_file(actual_port)
     log.info("Starting Ouroboros server on port %d", actual_port)
-    config = uvicorn.Config(app, host="127.0.0.1", port=actual_port, log_level="warning")
+    _host = os.environ.get("OUROBOROS_HOST", "127.0.0.1")
+    config = uvicorn.Config(app, host=_host, port=actual_port, log_level="warning")
     server = uvicorn.Server(config)
 
     def _check_restart():

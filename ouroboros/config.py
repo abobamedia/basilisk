@@ -78,6 +78,8 @@ SETTINGS_DEFAULTS = {
     "USE_LOCAL_FALLBACK": False,
     # Telegram (server mode)
     "TELEGRAM_BOT_TOKEN": "",
+    # Telegram Mini App URL (set after cloudflared tunnel is started)
+    "MINI_APP_URL": "",
 }
 
 
@@ -177,6 +179,7 @@ def apply_settings_to_env(settings: dict) -> None:
         "USE_LOCAL_MAIN", "USE_LOCAL_CODE", "USE_LOCAL_LIGHT", "USE_LOCAL_FALLBACK",
         "PROVIDER_MAIN", "PROVIDER_CODE", "PROVIDER_LIGHT", "PROVIDER_FALLBACK",
         "TELEGRAM_BOT_TOKEN",
+        "MINI_APP_URL",
     ]
     for k in env_keys:
         val = settings.get(k)

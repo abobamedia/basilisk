@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ouroboros Agent Monitor</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #12121a;
+    --border: #2a2a40;
+    --green: #39ff14;
+    --cyan: #00ffff;
+    --purple: #b44aff;
+    --yellow: #ffd700;
+    --red: #ff4444;
+    --text: #e0e0ff;
+    --muted: #606080;
+    --pixel: "Courier New", monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--pixel);
+    font-size: 12px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* PIXEL FONT */
+  @font-face {
+    font-family: 'Press Start 2P';
+    src: url('https://fonts.gstatic.com/s/pressstart2p/v15/e3t4euO8T-267oIAQAu6jDQyK3nVivM.woff2') format('woff2');
+  }
+
+  h1, .pixel-text { font-family: 'Press Start 2P', monospace; }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--panel);
+    border-bottom: 2px solid var(--border);
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 {
+    font-size: 9px;
+    color: var(--green);
+    text-shadow: 0 0 8px var(--green);
+    letter-spacing: 1px;
+  }
+  .header .sha { color: var(--muted); font-size: 9px; }
+
+  /* ── PIXEL OFFICE ── */
+  .office-wrapper {
+    background: var(--panel);
+    border-bottom: 2px solid var(--border);
+    overflow: hidden;
+    position: relative;
+    height: 90px;
+  }
+
+  .office-bg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background:
+      repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(42,42,64,0.3) 15px, rgba(42,42,64,0.3) 16px),
+      repeating-linear-gradient(0deg, transparent, transparent 15px, rgba(42,42,64,0.3) 15px, rgba(42,42,64,0.3) 16px);
+  }
+
+  /* Floor */
+  .office-floor {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 16px;
+    background: #1a1a2e;
+    border-top: 2px solid #2a2a4f;
+  }
+
+  /* Pixel desks */
+  .desk {
+    position: absolute;
+    bottom: 16px;
+    width: 28px;
+    height: 20px;
+    background: #4a3728;
+    border-top: 4px solid #6b5340;
+    border-left: 2px solid #3a2820;
+    border-right: 2px solid #3a2820;
+  }
+  .desk::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 2px;
+    width: 20px;
+    height: 8px;
+    background: #1a1a2e;
+    border: 1px solid #2a2a5e;
+  }
+
+  /* Pixel character */
+  .agent-char {
+    position: absolute;
+    bottom: 14px;
+    width: 16px;
+    height: 24px;
+    image-rendering: pixelated;
+    transform-origin: bottom center;
+  }
+  .agent-char .head {
+    width: 14px;
+    height: 10px;
+    margin: 0 auto;
+    position: relative;
+    border-radius: 1px;
+  }
+  .agent-char .body {
+    width: 12px;
+    height: 10px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .agent-char .legs {
+    width: 12px;
+    height: 4px;
+    margin: 0 auto;
+    display: flex;
+    gap: 2px;
+  }
+  .agent-char .leg {
+    width: 5px;
+    height: 4px;
+    border-radius: 0 0 1px 1px;
+  }
+
+  /* Agent animations */
+  @keyframes walk { 0%,100%{transform:translateX(0)} 50%{transform:translateX(3px)} }
+  @keyframes type { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(0.9) translateY(1px)} }
+  @keyframes idle { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-1px)} }
+  @keyframes pulse-glow { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  @keyframes scan-line { 0%{top:0} 100%{top:90px} }
+
+  .anim-walk { animation: walk 0.4s steps(2) infinite; }
+  .anim-type  { animation: type 0.3s steps(2) infinite; }
+  .anim-idle  { animation: idle 2s ease-in-out infinite; }
+
+  /* Scan line effect */
+  .scan-line {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: rgba(57,255,20,0.15);
+    animation: scan-line 3s linear infinite;
+    pointer-events: none;
+  }
+
+  /* Speech bubble */
+  .bubble {
+    position: absolute;
+    background: var(--yellow);
+    color: #000;
+    font-size: 7px;
+    padding: 2px 4px;
+    border-radius: 2px;
+    white-space: nowrap;
+    bottom: 42px;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 2px solid transparent;
+    border-top-color: var(--yellow);
+  }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 2px solid var(--border);
+  }
+  .stat-box {
+    background: var(--panel);
+    padding: 8px;
+    text-align: center;
+  }
+  .stat-box .val {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 14px;
+    color: var(--cyan);
+    text-shadow: 0 0 6px var(--cyan);
+    display: block;
+    margin-bottom: 3px;
+  }
+  .stat-box .val.green { color: var(--green); text-shadow: 0 0 6px var(--green); }
+  .stat-box .val.yellow { color: var(--yellow); text-shadow: 0 0 6px var(--yellow); }
+  .stat-box .lbl { color: var(--muted); font-size: 8px; }
+
+  /* ── BUDGET BAR ── */
+  .budget-section {
+    padding: 10px 12px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .budget-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 9px;
+    color: var(--muted);
+  }
+  .budget-track {
+    height: 8px;
+    background: var(--border);
+    position: relative;
+    image-rendering: pixelated;
+  }
+  .budget-fill {
+    height: 100%;
+    background: repeating-linear-gradient(90deg, var(--green) 0px, var(--green) 6px, transparent 6px, transparent 8px);
+    transition: width 0.5s;
+    min-width: 4px;
+  }
+  .budget-fill.warn { background: repeating-linear-gradient(90deg, var(--yellow) 0px, var(--yellow) 6px, transparent 6px, transparent 8px); }
+  .budget-fill.danger { background: repeating-linear-gradient(90deg, var(--red) 0px, var(--red) 6px, transparent 6px, transparent 8px); }
+
+  /* ── TASKS ── */
+  .section-title {
+    padding: 8px 12px 4px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    color: var(--purple);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .task-list { padding: 0 8px 8px; }
+
+  .task-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .task-card.running { border-left-color: var(--green); }
+  .task-card.waiting { border-left-color: var(--yellow); }
+  .task-card.idle    { border-left-color: var(--muted); }
+
+  .task-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,255,0.3), transparent);
+  }
+
+  .task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .task-model {
+    font-size: 8px;
+    color: var(--cyan);
+  }
+  .task-status {
+    font-size: 7px;
+    padding: 1px 4px;
+    border: 1px solid;
+  }
+  .task-status.running { color: var(--green); border-color: var(--green); animation: pulse-glow 1s ease-in-out infinite; }
+  .task-status.idle    { color: var(--muted); border-color: var(--muted); }
+  .task-status.paused  { color: var(--yellow); border-color: var(--yellow); }
+
+  .task-desc {
+    color: var(--text);
+    font-size: 10px;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .task-cost {
+    font-size: 8px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--muted);
+    font-size: 9px;
+    line-height: 2;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    padding: 6px 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8px;
+    color: var(--muted);
+  }
+  .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 4px var(--green);
+    animation: pulse-glow 1s ease-in-out infinite;
+    margin-right: 4px;
+  }
+  .dot.offline { background: var(--red); box-shadow: 0 0 4px var(--red); animation: none; }
+
+  /* ── EVOLUTION BADGE ── */
+  .evo-badge {
+    display: inline-block;
+    background: rgba(180,74,255,0.15);
+    border: 1px solid var(--purple);
+    color: var(--purple);
+    font-size: 7px;
+    padding: 2px 6px;
+    text-shadow: 0 0 4px var(--purple);
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⟁ OUROBOROS</h1>
+  <div>
+    <span class="sha" id="sha">loading...</span>
+  </div>
+</div>
+
+<!-- PIXEL OFFICE -->
+<div class="office-wrapper" id="office">
+  <div class="office-bg"></div>
+  <div class="scan-line"></div>
+  <div class="office-floor"></div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat-box">
+    <span class="val green" id="workers">-</span>
+    <span class="lbl">WORKERS</span>
+  </div>
+  <div class="stat-box">
+    <span class="val" id="running">-</span>
+    <span class="lbl">RUNNING</span>
+  </div>
+  <div class="stat-box">
+    <span class="val yellow" id="calls">-</span>
+    <span class="lbl">API CALLS</span>
+  </div>
+</div>
+
+<!-- BUDGET -->
+<div class="budget-section">
+  <div class="budget-label">
+    <span>BUDGET</span>
+    <span id="budget-text">$0.00 / $50.00</span>
+  </div>
+  <div class="budget-track">
+    <div class="budget-fill" id="budget-fill" style="width:0%"></div>
+  </div>
+</div>
+
+<!-- TASKS -->
+<div class="section-title">▸ ACTIVE AGENTS</div>
+<div class="task-list" id="task-list">
+  <div class="empty-state">
+    ··· NO ACTIVE AGENTS ···<br>
+    AWAITING COMMANDS
+  </div>
+</div>
+
+<!-- MODELS -->
+<div class="section-title">▸ MODEL USAGE</div>
+<div class="task-list" id="model-list"></div>
+
+<div class="footer">
+  <span><span class="dot" id="status-dot"></span><span id="status-text">connecting...</span></span>
+  <span id="evo-badge" style="display:none" class="evo-badge">⟳ EVOLVING</span>
+  <span id="uptime">uptime: --</span>
+</div>
+
+<script>
+// Telegram Mini App init
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  // Apply Telegram theme colors if available
+  if (tg.colorScheme === 'light') {
+    document.documentElement.style.setProperty('--bg', '#f0f0f8');
+    document.documentElement.style.setProperty('--panel', '#ffffff');
+    document.documentElement.style.setProperty('--text', '#1a1a2e');
+    document.documentElement.style.setProperty('--border', '#d0d0e8');
+  }
+}
+
+// ── PIXEL CHARACTERS ──
+const COLORS = [
+  { head: '#ff6b9d', body: '#c44dff', leg: '#6b4dff' },
+  { head: '#ffd700', body: '#ff8c00', leg: '#ff4500' },
+  { head: '#39ff14', body: '#00cc44', leg: '#006622' },
+  { head: '#00ffff', body: '#0099cc', leg: '#005588' },
+  { head: '#ff9966', body: '#cc6644', leg: '#883322' },
+];
+
+function createPixelChar(slot, colorIdx, state) {
+  const c = COLORS[colorIdx % COLORS.length];
+  const x = 20 + slot * 70;
+  const animClass = state === 'running' ? 'anim-type' : state === 'walking' ? 'anim-walk' : 'anim-idle';
+
+  return `
+    <div class="agent-char ${animClass}" style="left:${x}px" data-slot="${slot}">
+      <div class="head" style="background:${c.head};border-left:2px solid rgba(0,0,0,0.3);border-right:2px solid rgba(255,255,255,0.2)">
+        <div style="width:2px;height:2px;background:#000;position:absolute;top:3px;left:3px;border-radius:50%"></div>
+        <div style="width:2px;height:2px;background:#000;position:absolute;top:3px;right:3px;border-radius:50%"></div>
+      </div>
+      <div class="body" style="background:${c.body};border-left:1px solid rgba(0,0,0,0.2)"></div>
+      <div class="legs">
+        <div class="leg" style="background:${c.leg}"></div>
+        <div class="leg" style="background:${c.leg}"></div>
+      </div>
+    </div>`;
+}
+
+function createDesk(slot) {
+  const x = 10 + slot * 70;
+  return `<div class="desk" style="left:${x}px"></div>`;
+}
+
+function renderOffice(workers, running) {
+  const office = document.getElementById('office');
+  let html = '<div class="office-bg"></div><div class="scan-line"></div><div class="office-floor"></div>';
+
+  for (let i = 0; i < Math.max(workers, 2); i++) {
+    html += createDesk(i);
+    const state = i < running ? 'running' : 'idle';
+    html += createPixelChar(i, i, state);
+  }
+  office.innerHTML = html;
+}
+
+// ── API POLLING ──
+let lastState = null;
+let errorCount = 0;
+
+function fmtUptime(sec) {
+  if (sec < 60) return sec + 's';
+  if (sec < 3600) return Math.floor(sec/60) + 'm ' + (sec%60) + 's';
+  return Math.floor(sec/3600) + 'h ' + Math.floor((sec%3600)/60) + 'm';
+}
+
+function fmtModel(m) {
+  return m.replace('nvidia/', '').replace('openai-codex/', '').replace('openai/', '').split('-').slice(0,3).join('-');
+}
+
+async function fetchState() {
+  try {
+    const [stateRes, costRes] = await Promise.all([
+      fetch('/api/state'),
+      fetch('/api/cost-breakdown')
+    ]);
+
+    if (!stateRes.ok) throw new Error('API error');
+    const state = await stateRes.json();
+    const cost = costRes.ok ? await costRes.json() : {};
+
+    errorCount = 0;
+    updateUI(state, cost);
+  } catch(e) {
+    errorCount++;
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    if (dot) { dot.className = 'dot offline'; }
+    if (txt) { txt.textContent = 'disconnected'; }
+  }
+}
+
+function updateUI(state, cost) {
+  // Status dot
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  if (dot) { dot.className = 'dot'; }
+  if (txt) { txt.textContent = 'live'; }
+
+  // Header SHA
+  const sha = document.getElementById('sha');
+  if (sha && state.sha) { sha.textContent = state.sha.slice(0,7); }
+
+  // Stats
+  const wEl = document.getElementById('workers');
+  const rEl = document.getElementById('running');
+  const cEl = document.getElementById('calls');
+  if (wEl) wEl.textContent = state.workers_alive || 0;
+  if (rEl) rEl.textContent = state.running_count || 0;
+  if (cEl) cEl.textContent = state.spent_calls || 0;
+
+  // Budget
+  const spent = state.spent_usd || 0;
+  const limit = state.budget_limit || 50;
+  const pct = Math.min(100, (spent / limit) * 100);
+  const fill = document.getElementById('budget-fill');
+  const btxt = document.getElementById('budget-text');
+  if (fill) {
+    fill.style.width = Math.max(2, pct) + '%';
+    fill.className = 'budget-fill' + (pct > 80 ? ' danger' : pct > 50 ? ' warn' : '');
+  }
+  if (btxt) btxt.textContent = `$${spent.toFixed(4)} / $${limit.toFixed(2)}`;
+
+  // Office visualization
+  renderOffice(state.workers_total || 2, state.running_count || 0);
+
+  // Evolution badge
+  const evoBadge = document.getElementById('evo-badge');
+  if (evoBadge) evoBadge.style.display = state.evolution_enabled ? 'inline-block' : 'none';
+
+  // Uptime
+  const uptimeEl = document.getElementById('uptime');
+  if (uptimeEl) uptimeEl.textContent = 'up: ' + fmtUptime(state.uptime || 0);
+
+  // Tasks
+  const taskList = document.getElementById('task-list');
+  if (taskList) {
+    if (!state.running_count && !state.pending_count) {
+      taskList.innerHTML = `<div class="empty-state">··· NO ACTIVE AGENTS ···<br>AWAITING COMMANDS</div>`;
+    } else {
+      // Show worker status cards
+      let html = '';
+      const workers_alive = state.workers_alive || 0;
+      for (let i = 0; i < Math.max(workers_alive, state.workers_total || 2); i++) {
+        const isRunning = i < (state.running_count || 0);
+        html += `
+        <div class="task-card ${isRunning ? 'running' : 'idle'}">
+          <div class="task-header">
+            <span class="task-model">AGENT-${i+1}</span>
+            <span class="task-status ${isRunning ? 'running' : 'idle'}">${isRunning ? '◉ BUSY' : '○ IDLE'}</span>
+          </div>
+          <div class="task-desc">${isRunning ? '>>> processing...' : '>>> waiting for task'}</div>
+        </div>`;
+      }
+      taskList.innerHTML = html;
+    }
+  }
+
+  // Model usage
+  const modelList = document.getElementById('model-list');
+  if (modelList && cost.by_model) {
+    const models = Object.entries(cost.by_model);
+    if (models.length === 0) {
+      modelList.innerHTML = '<div class="empty-state">NO CALLS YET</div>';
+    } else {
+      modelList.innerHTML = models.map(([m, d]) => `
+        <div class="task-card">
+          <div class="task-header">
+            <span class="task-model">${fmtModel(m)}</span>
+            <span class="task-cost">${d.calls} calls</span>
+          </div>
+          <div class="task-desc" style="color:var(--muted);font-size:9px">$${(d.cost||0).toFixed(6)}</div>
+        </div>`).join('');
+    }
+  }
+}
+
+// Poll every 3 seconds
+fetchState();
+setInterval(fetchState, 3000);
+</script>
+</body>
+</html>

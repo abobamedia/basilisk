@@ -131,8 +131,9 @@ def _run_supervisor(settings: dict) -> None:
 
         if _tg_token:
             from supervisor.telegram import TelegramChatBridge
-            bridge = TelegramChatBridge(token=_tg_token)
-            log.info("Using Telegram bridge (bot token set).")
+            _mini_url = os.environ.get("MINI_APP_URL", "").strip() or settings.get("MINI_APP_URL", "").strip()
+            bridge = TelegramChatBridge(token=_tg_token, mini_app_url=_mini_url)
+            log.info("Using Telegram bridge (bot token set). Mini App URL: %s", _mini_url or "(not set)")
         else:
             from supervisor.message_bus import LocalChatBridge
             bridge = LocalChatBridge()
@@ -360,6 +361,37 @@ def _run_supervisor(settings: dict) -> None:
                     from supervisor.state import status_text
                     status = status_text(WORKERS, PENDING, RUNNING, soft_timeout, hard_timeout)
                     send_with_budget(chat_id, status, force_budget=True)
+                elif lowered.startswith("/monitor") or lowered.startswith("/app"):
+                    from supervisor.telegram import TelegramChatBridge
+                    mini_url = TelegramChatBridge.MINI_APP_URL
+                    if mini_url:
+                        bridge._tg.send_webapp_button(
+                            chat_id,
+                            "📊 Открой монитор агентов Ouroboros:",
+                            mini_url,
+                            "⟁ Открыть монитор"
+                        )
+                    else:
+                        send_with_budget(chat_id, "⚠️ Mini App URL не настроен. Установи MINI_APP_URL в настройках.", force_budget=True)
+                elif lowered.startswith("/help") or lowered.startswith("/start"):
+                    from supervisor.telegram import TelegramChatBridge
+                    mini_url = TelegramChatBridge.MINI_APP_URL
+                    help_text = (
+                        "⟁ *Ouroboros* — самоэволюционирующий AI агент\n\n"
+                        "Команды:\n"
+                        "/status — состояние системы\n"
+                        "/monitor — открыть монитор агентов\n"
+                        "/evolve on|off — включить/выключить эволюцию\n"
+                        "/bg on|off — фоновое сознание\n"
+                        "/review — запустить code review\n"
+                        "/restart — перезапуск\n"
+                        "/panic — аварийная остановка\n\n"
+                        "Или просто напиши задачу на русском."
+                    )
+                    if mini_url:
+                        bridge._tg.send_webapp_button(chat_id, help_text, mini_url, "📊 Монитор агентов")
+                    else:
+                        send_with_budget(chat_id, help_text, force_budget=True)
                 else:
                     _consciousness.inject_observation(f"Owner message: {text[:100]}")
                     agent = _get_chat_agent()
@@ -817,8 +849,21 @@ async def api_local_model_test(request: Request) -> JSONResponse:
 web_dir = REPO_DIR / "web"
 web_dir.mkdir(parents=True, exist_ok=True)
 
+async def mini_app_page(request: Request) -> HTMLResponse:
+    """Telegram Mini App — pixel-art agent monitor."""
+    mini_path = REPO_DIR / "static" / "mini.html"
+    if mini_path.exists():
+        return HTMLResponse(mini_path.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Mini App not found</h1>", status_code=404)
+
+
+# Static dir for mini app assets
+static_dir = REPO_DIR / "static"
+static_dir.mkdir(parents=True, exist_ok=True)
+
 routes = [
     Route("/", endpoint=index_page),
+    Route("/mini", endpoint=mini_app_page),
     Route("/api/health", endpoint=api_health),
     Route("/api/state", endpoint=api_state),
     Route("/api/settings", endpoint=api_settings_get, methods=["GET"]),
@@ -834,7 +879,8 @@ routes = [
     Route("/api/local-model/status", endpoint=api_local_model_status),
     Route("/api/local-model/test", endpoint=api_local_model_test, methods=["POST"]),
     WebSocketRoute("/ws", endpoint=ws_endpoint),
-    Mount("/static", app=StaticFiles(directory=str(web_dir)), name="static"),
+    Mount("/static", app=StaticFiles(directory=str(static_dir)), name="static"),
+    Mount("/web", app=StaticFiles(directory=str(web_dir)), name="web"),
 ]
 
 from contextlib import asynccontextmanager

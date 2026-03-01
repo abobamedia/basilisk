@@ -127,6 +127,54 @@ class TelegramClient:
             log.warning("Failed to download file_id=%s from Telegram", file_id, exc_info=True)
             return None, ""
 
+    def send_webapp_button(self, chat_id: int, text: str, webapp_url: str,
+                           button_text: str = "📊 Open Monitor") -> Tuple[bool, str]:
+        """Send a message with a Web App inline button."""
+        import json as _json
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "reply_markup": _json.dumps({
+                "inline_keyboard": [[
+                    {"text": button_text, "web_app": {"url": webapp_url}}
+                ]]
+            }),
+        }
+        try:
+            r = requests.post(f"{self.base}/sendMessage", data=payload, timeout=10)
+            data = r.json()
+            if data.get("ok"):
+                return True, "ok"
+            return False, str(data)
+        except Exception as e:
+            return False, repr(e)
+
+    def set_chat_menu_button(self, webapp_url: str, button_text: str = "📊 Monitor") -> bool:
+        """Set the bot's persistent menu button to open the Mini App."""
+        import json as _json
+        try:
+            r = requests.post(
+                f"{self.base}/setChatMenuButton",
+                json={"menu_button": {"type": "web_app", "text": button_text,
+                                      "web_app": {"url": webapp_url}}},
+                timeout=10,
+            )
+            return r.json().get("ok", False)
+        except Exception:
+            return False
+
+    def set_commands(self, commands: List[Dict[str, str]]) -> bool:
+        """Set bot command list visible in Telegram."""
+        try:
+            r = requests.post(
+                f"{self.base}/setMyCommands",
+                json={"commands": commands},
+                timeout=10,
+            )
+            return r.json().get("ok", False)
+        except Exception:
+            return False
+
 
 # ---------------------------------------------------------------------------
 # TelegramChatBridge — same interface as LocalChatBridge
@@ -139,9 +187,35 @@ class TelegramChatBridge:
     without knowing whether they talk to WebSocket UI or Telegram.
     """
 
-    def __init__(self, token: str):
+    # Set via env var or config at startup
+    MINI_APP_URL: str = ""
+
+    def __init__(self, token: str, mini_app_url: str = ""):
         self._tg = TelegramClient(token)
         self._broadcast_fn = None  # unused for Telegram, kept for compat
+        if mini_app_url:
+            TelegramChatBridge.MINI_APP_URL = mini_app_url
+        self._setup_bot()
+
+    def _setup_bot(self) -> None:
+        """Configure bot commands and menu button on startup."""
+        try:
+            # Set bot commands
+            self._tg.set_commands([
+                {"command": "start",   "description": "Начать / Start"},
+                {"command": "monitor", "description": "📊 Открыть монитор агентов"},
+                {"command": "status",  "description": "⚡ Статус системы"},
+                {"command": "help",    "description": "❓ Помощь"},
+            ])
+        except Exception:
+            pass
+        try:
+            # Set persistent menu button if Mini App URL is known
+            if TelegramChatBridge.MINI_APP_URL:
+                self._tg.set_chat_menu_button(TelegramChatBridge.MINI_APP_URL)
+                log.info("Telegram Mini App menu button set: %s", TelegramChatBridge.MINI_APP_URL)
+        except Exception:
+            pass
 
     def get_updates(self, offset: int, timeout: int = 10) -> List[Dict[str, Any]]:
         return self._tg.get_updates(offset=offset, timeout=timeout)

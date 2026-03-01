@@ -283,7 +283,7 @@ def _run_supervisor(settings: dict) -> None:
             assign_tasks()
             persist_queue_snapshot(reason="main_loop")
 
-            # Process messages from WebSocket bridge
+            # Process messages from bridge (WebSocket or Telegram)
             updates = bridge.get_updates(offset=offset, timeout=1)
             for upd in updates:
                 offset = int(upd["update_id"]) + 1
@@ -291,8 +291,10 @@ def _run_supervisor(settings: dict) -> None:
                 if not msg:
                     continue
 
-                chat_id = 1
-                user_id = 1
+                # Extract real chat_id/user_id from Telegram update,
+                # fall back to 1 for local WebSocket bridge
+                chat_id = int((msg.get("chat") or {}).get("id") or 1)
+                user_id = int((msg.get("from") or {}).get("id") or 1)
                 text = str(msg.get("text") or "")
                 now_iso = datetime.now(timezone.utc).isoformat()
 

@@ -299,7 +299,9 @@ def _run_supervisor(settings: dict) -> None:
                 now_iso = datetime.now(timezone.utc).isoformat()
 
                 st = load_state()
-                if st.get("owner_id") is None:
+                # Always update owner identity from real message
+                # (critical for Telegram: chat_id changes between sessions/restarts)
+                if st.get("owner_id") is None or (chat_id != 1 and st.get("owner_chat_id") != chat_id):
                     st["owner_id"] = user_id
                     st["owner_chat_id"] = chat_id
 

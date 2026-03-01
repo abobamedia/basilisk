@@ -68,7 +68,7 @@ def call_openclaw(prompt: str) -> str:
 
     try:
         result = subprocess.run(
-            ["openclaw", "agent", "-m", prompt],
+            ["openclaw", "agent", "--agent", "main", "-m", prompt],
             capture_output=True,
             text=True,
             timeout=OPENCLAW_TIMEOUT,

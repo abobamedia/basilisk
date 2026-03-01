@@ -104,7 +104,7 @@ PROVIDERS: Dict[str, LLMProvider] = {
     "codex": LLMProvider(
         name="codex",
         display_name="Codex (OpenClaw)",
-        base_url="http://127.0.0.1:18789/v1",
+        base_url="http://host.docker.internal:18780/v1",
         api_key_setting="OPENCLAW_API_TOKEN",
         supports_reasoning=False,
         supports_cache_control=False,

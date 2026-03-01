@@ -1,23 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Ouroboros Agent Monitor</title>
+<title>Уроборос — Монитор агентов</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root {
-    --bg: #0a0a0f;
-    --panel: #12121a;
-    --border: #2a2a40;
+    --bg: #0d0d14;
+    --panel: #13131f;
+    --panel2: #1a1a28;
+    --border: #252540;
     --green: #39ff14;
-    --cyan: #00ffff;
-    --purple: #b44aff;
-    --yellow: #ffd700;
+    --cyan: #00e5ff;
+    --purple: #c44dff;
+    --yellow: #ffc107;
     --red: #ff4444;
-    --text: #e0e0ff;
-    --muted: #606080;
-    --pixel: "Courier New", monospace;
+    --orange: #ff7c00;
+    --text: #dde0ff;
+    --muted: #5a5a80;
+    --teal: #00ffc8;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,25 +27,17 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: var(--pixel);
+    font-family: "Courier New", monospace;
     font-size: 12px;
     min-height: 100vh;
     overflow-x: hidden;
   }
 
-  /* PIXEL FONT */
-  @font-face {
-    font-family: 'Press Start 2P';
-    src: url('https://fonts.gstatic.com/s/pressstart2p/v15/e3t4euO8T-267oIAQAu6jDQyK3nVivM.woff2') format('woff2');
-  }
-
-  h1, .pixel-text { font-family: 'Press Start 2P', monospace; }
-
   /* ── HEADER ── */
   .header {
     background: var(--panel);
     border-bottom: 2px solid var(--border);
-    padding: 10px 12px;
+    padding: 10px 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -51,142 +45,247 @@
     top: 0;
     z-index: 100;
   }
-  .header h1 {
-    font-size: 9px;
-    color: var(--green);
-    text-shadow: 0 0 8px var(--green);
+  .header-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px var(--cyan);
+  }
+  .header-title span { color: var(--purple); }
+  .header-sub { font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .header-right { text-align: right; }
+  .sha-badge {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 8px;
+    padding: 2px 6px;
     letter-spacing: 1px;
   }
-  .header .sha { color: var(--muted); font-size: 9px; }
 
   /* ── PIXEL OFFICE ── */
   .office-wrapper {
-    background: var(--panel);
+    background: #0a0a12;
     border-bottom: 2px solid var(--border);
     overflow: hidden;
     position: relative;
-    height: 90px;
+    height: 100px;
   }
 
+  /* Grid background */
   .office-bg {
     position: absolute;
-    width: 100%;
-    height: 100%;
-    background:
-      repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(42,42,64,0.3) 15px, rgba(42,42,64,0.3) 16px),
-      repeating-linear-gradient(0deg, transparent, transparent 15px, rgba(42,42,64,0.3) 15px, rgba(42,42,64,0.3) 16px);
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(37,37,64,0.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(37,37,64,0.4) 1px, transparent 1px);
+    background-size: 20px 20px;
   }
 
-  /* Floor */
+  /* Floor strip */
   .office-floor {
     position: absolute;
     bottom: 0;
     width: 100%;
-    height: 16px;
-    background: #1a1a2e;
-    border-top: 2px solid #2a2a4f;
+    height: 18px;
+    background: linear-gradient(#1a1a30, #12122a);
+    border-top: 2px solid #2a2a50;
   }
 
-  /* Pixel desks */
+  /* Scanline effect */
+  @keyframes scanline { 0%{top:-4px} 100%{top:104px} }
+  .scan-line {
+    position: absolute;
+    left: 0; width: 100%;
+    height: 3px;
+    background: linear-gradient(transparent, rgba(0,229,255,0.08), transparent);
+    animation: scanline 4s linear infinite;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* ── PIXEL DESK ── */
   .desk {
     position: absolute;
-    bottom: 16px;
-    width: 28px;
-    height: 20px;
-    background: #4a3728;
-    border-top: 4px solid #6b5340;
-    border-left: 2px solid #3a2820;
-    border-right: 2px solid #3a2820;
+    bottom: 18px;
+    width: 34px;
+    height: 22px;
+    /* Table surface */
+    background: #5a3f2a;
+    border-top: 4px solid #7a5a38;
+    /* Legs */
+    box-shadow: 3px 16px 0 #3a2a18, 24px 16px 0 #3a2a18;
   }
+  /* Monitor on desk */
+  .desk::before {
+    content: '';
+    position: absolute;
+    top: -14px;
+    left: 6px;
+    width: 18px;
+    height: 12px;
+    background: #1a1a3a;
+    border: 2px solid #3a3a6a;
+    box-shadow: inset 0 0 4px rgba(0,229,255,0.2);
+  }
+  /* Monitor screen glow */
   .desk::after {
     content: '';
     position: absolute;
-    top: -2px;
-    left: 2px;
-    width: 20px;
+    top: -12px;
+    left: 8px;
+    width: 14px;
     height: 8px;
-    background: #1a1a2e;
-    border: 1px solid #2a2a5e;
+    background: rgba(0,229,255,0.15);
+    animation: screen-flicker 2s ease-in-out infinite;
   }
+  @keyframes screen-flicker {
+    0%,100%{opacity:1} 50%{opacity:0.6} 75%{opacity:0.9}
+  }
+  .desk.running::after { background: rgba(57,255,20,0.2); animation-duration: 0.5s; }
 
-  /* Pixel character */
+  /* ── PIXEL CHARACTER ── */
   .agent-char {
     position: absolute;
-    bottom: 14px;
-    width: 16px;
-    height: 24px;
+    bottom: 16px;
     image-rendering: pixelated;
     transform-origin: bottom center;
+    z-index: 10;
+    cursor: default;
   }
-  .agent-char .head {
+
+  /* Character parts */
+  .char-head {
     width: 14px;
-    height: 10px;
-    margin: 0 auto;
+    height: 12px;
+    margin: 0 auto 0;
+    border-radius: 2px;
     position: relative;
+  }
+  /* Eyes */
+  .char-head::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 2px;
+    width: 4px;
+    height: 3px;
+    background: rgba(0,0,0,0.7);
+    box-shadow: 5px 0 0 rgba(0,0,0,0.7);
     border-radius: 1px;
   }
-  .agent-char .body {
+  /* Mouth (happy) */
+  .char-head::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 3px;
+    width: 8px;
+    height: 2px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 0 0 2px 2px;
+  }
+
+  .char-body {
     width: 12px;
     height: 10px;
     margin: 0 auto;
+    border-radius: 1px;
     position: relative;
   }
-  .agent-char .legs {
-    width: 12px;
-    height: 4px;
-    margin: 0 auto;
+
+  .char-legs {
     display: flex;
     gap: 2px;
+    margin: 0 auto;
+    width: 12px;
   }
-  .agent-char .leg {
+  .char-leg {
     width: 5px;
-    height: 4px;
-    border-radius: 0 0 1px 1px;
+    height: 5px;
+    border-radius: 0 0 2px 2px;
   }
 
-  /* Agent animations */
-  @keyframes walk { 0%,100%{transform:translateX(0)} 50%{transform:translateX(3px)} }
-  @keyframes type { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(0.9) translateY(1px)} }
-  @keyframes idle { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-1px)} }
-  @keyframes pulse-glow { 0%,100%{opacity:1} 50%{opacity:0.5} }
-  @keyframes scan-line { 0%{top:0} 100%{top:90px} }
-
-  .anim-walk { animation: walk 0.4s steps(2) infinite; }
-  .anim-type  { animation: type 0.3s steps(2) infinite; }
-  .anim-idle  { animation: idle 2s ease-in-out infinite; }
-
-  /* Scan line effect */
-  .scan-line {
+  /* Arms (raised when working) */
+  .char-arm-l, .char-arm-r {
     position: absolute;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: rgba(57,255,20,0.15);
-    animation: scan-line 3s linear infinite;
-    pointer-events: none;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+    border-radius: 2px;
+    transition: transform 0.3s;
   }
+  .char-arm-l { left: -5px; transform-origin: top right; }
+  .char-arm-r { right: -5px; transform-origin: top left; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes char-type {
+    0%,100%{transform:translateY(0) rotate(0deg)} 25%{transform:translateY(-2px)} 75%{transform:translateY(1px)}
+  }
+  @keyframes char-idle {
+    0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)}
+  }
+  @keyframes char-think {
+    0%,100%{transform:rotate(0deg)} 30%{transform:rotate(-3deg)} 70%{transform:rotate(3deg)}
+  }
+  @keyframes arm-type-l {
+    0%,100%{transform:rotate(-30deg)} 50%{transform:rotate(-60deg)}
+  }
+  @keyframes arm-type-r {
+    0%,100%{transform:rotate(30deg)} 50%{transform:rotate(60deg)}
+  }
+  @keyframes pulse-glow { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  @keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .anim-type .char-head { animation: char-type 0.35s steps(2) infinite; }
+  .anim-type .char-arm-l { animation: arm-type-l 0.35s steps(2) infinite; }
+  .anim-type .char-arm-r { animation: arm-type-r 0.35s steps(2) infinite; }
+  .anim-idle .char-head { animation: char-idle 2.5s ease-in-out infinite; }
+  .anim-think .char-head { animation: char-think 1.5s ease-in-out infinite; }
 
   /* Speech bubble */
-  .bubble {
+  .speech-bubble {
     position: absolute;
     background: var(--yellow);
     color: #000;
     font-size: 7px;
-    padding: 2px 4px;
-    border-radius: 2px;
+    font-weight: bold;
+    padding: 3px 5px;
+    border-radius: 3px;
     white-space: nowrap;
-    bottom: 42px;
+    bottom: 56px;
     transform: translateX(-50%);
     pointer-events: none;
+    z-index: 20;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
   }
-  .bubble::after {
+  .speech-bubble::after {
     content: '';
     position: absolute;
-    bottom: -4px;
+    bottom: -5px;
     left: 50%;
     transform: translateX(-50%);
-    border: 2px solid transparent;
+    border: 3px solid transparent;
     border-top-color: var(--yellow);
+  }
+  .speech-bubble.idle { background: var(--muted); color: var(--text); }
+  .speech-bubble.idle::after { border-top-color: var(--muted); }
+  .speech-bubble.think { background: var(--cyan); }
+  .speech-bubble.think::after { border-top-color: var(--cyan); }
+
+  /* Agent name tag */
+  .name-tag {
+    position: absolute;
+    bottom: 3px;
+    transform: translateX(-50%);
+    font-size: 7px;
+    color: var(--muted);
+    white-space: nowrap;
+    z-index: 15;
   }
 
   /* ── STATS BAR ── */
@@ -199,403 +298,586 @@
   }
   .stat-box {
     background: var(--panel);
-    padding: 8px;
+    padding: 10px 6px;
     text-align: center;
   }
-  .stat-box .val {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 14px;
+  .stat-val {
+    font-size: 22px;
+    font-weight: bold;
     color: var(--cyan);
-    text-shadow: 0 0 6px var(--cyan);
+    text-shadow: 0 0 8px var(--cyan);
     display: block;
-    margin-bottom: 3px;
+    margin-bottom: 4px;
+    line-height: 1;
   }
-  .stat-box .val.green { color: var(--green); text-shadow: 0 0 6px var(--green); }
-  .stat-box .val.yellow { color: var(--yellow); text-shadow: 0 0 6px var(--yellow); }
-  .stat-box .lbl { color: var(--muted); font-size: 8px; }
+  .stat-val.green { color: var(--green); text-shadow: 0 0 8px var(--green); }
+  .stat-val.yellow { color: var(--yellow); text-shadow: 0 0 6px var(--yellow); }
+  .stat-lbl {
+    color: var(--muted);
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
 
-  /* ── BUDGET BAR ── */
+  /* ── BUDGET ── */
   .budget-section {
-    padding: 10px 12px 6px;
+    padding: 10px 14px 8px;
     border-bottom: 1px solid var(--border);
+    background: var(--panel);
   }
-  .budget-label {
+  .budget-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 4px;
-    font-size: 9px;
-    color: var(--muted);
-  }
-  .budget-track {
-    height: 8px;
-    background: var(--border);
-    position: relative;
-    image-rendering: pixelated;
-  }
-  .budget-fill {
-    height: 100%;
-    background: repeating-linear-gradient(90deg, var(--green) 0px, var(--green) 6px, transparent 6px, transparent 8px);
-    transition: width 0.5s;
-    min-width: 4px;
-  }
-  .budget-fill.warn { background: repeating-linear-gradient(90deg, var(--yellow) 0px, var(--yellow) 6px, transparent 6px, transparent 8px); }
-  .budget-fill.danger { background: repeating-linear-gradient(90deg, var(--red) 0px, var(--red) 6px, transparent 6px, transparent 8px); }
-
-  /* ── TASKS ── */
-  .section-title {
-    padding: 8px 12px 4px;
-    font-family: 'Press Start 2P', monospace;
-    font-size: 7px;
-    color: var(--purple);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-  }
-
-  .task-list { padding: 0 8px 8px; }
-
-  .task-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--cyan);
-    padding: 8px 10px;
     margin-bottom: 6px;
+    font-size: 10px;
+  }
+  .budget-lbl { color: var(--muted); font-weight: bold; letter-spacing: 1px; }
+  .budget-val { color: var(--text); font-family: "Courier New", monospace; }
+  .budget-track {
+    height: 10px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
     position: relative;
     overflow: hidden;
   }
-  .task-card.running { border-left-color: var(--green); }
-  .task-card.waiting { border-left-color: var(--yellow); }
-  .task-card.idle    { border-left-color: var(--muted); }
-
-  .task-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(0,255,255,0.3), transparent);
+  .budget-fill {
+    height: 100%;
+    background: repeating-linear-gradient(
+      90deg, var(--green) 0px, var(--green) 5px, rgba(57,255,20,0.3) 5px, rgba(57,255,20,0.3) 8px
+    );
+    transition: width 0.5s ease;
+    min-width: 2px;
+  }
+  .budget-fill.warn {
+    background: repeating-linear-gradient(
+      90deg, var(--yellow) 0px, var(--yellow) 5px, rgba(255,193,7,0.3) 5px, rgba(255,193,7,0.3) 8px
+    );
+  }
+  .budget-fill.danger {
+    background: repeating-linear-gradient(
+      90deg, var(--red) 0px, var(--red) 5px, rgba(255,68,68,0.3) 5px, rgba(255,68,68,0.3) 8px
+    );
+    animation: pulse-glow 0.8s ease-in-out infinite;
+  }
+  .budget-pct {
+    font-size: 9px;
+    color: var(--muted);
+    text-align: right;
+    margin-top: 3px;
   }
 
-  .task-header {
+  /* ── SECTION TITLE ── */
+  .section-title {
+    padding: 10px 14px 6px;
+    font-size: 9px;
+    color: var(--purple);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .section-title::before {
+    content: '▸';
+    color: var(--cyan);
+  }
+
+  /* ── AGENT CARDS ── */
+  .agents-list { padding: 8px; background: var(--bg); }
+
+  .agent-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--muted);
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .agent-card.running { border-left-color: var(--green); }
+  .agent-card.waiting { border-left-color: var(--muted); }
+  .agent-card.thinking { border-left-color: var(--cyan); }
+  .agent-card.evolving { border-left-color: var(--purple); }
+
+  /* Shimmer line on active */
+  .agent-card.running::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(57,255,20,0.04), transparent);
+    animation: shimmer 2s linear infinite;
+  }
+  @keyframes shimmer { 0%{left:-100%} 100%{left:200%} }
+
+  .agent-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
-  .task-model {
-    font-size: 8px;
-    color: var(--cyan);
-  }
-  .task-status {
-    font-size: 7px;
-    padding: 1px 4px;
-    border: 1px solid;
-  }
-  .task-status.running { color: var(--green); border-color: var(--green); animation: pulse-glow 1s ease-in-out infinite; }
-  .task-status.idle    { color: var(--muted); border-color: var(--muted); }
-  .task-status.paused  { color: var(--yellow); border-color: var(--yellow); }
-
-  .task-desc {
+  .agent-name {
+    font-size: 11px;
+    font-weight: bold;
     color: var(--text);
-    font-size: 10px;
-    line-height: 1.5;
+    letter-spacing: 0.5px;
+  }
+  .agent-emoji { margin-right: 4px; font-size: 12px; }
+
+  .agent-badge {
+    font-size: 8px;
+    padding: 2px 7px;
+    border: 1px solid;
+    border-radius: 2px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .agent-badge.running { color: var(--green); border-color: var(--green); animation: pulse-glow 1s ease-in-out infinite; }
+  .agent-badge.waiting { color: var(--muted); border-color: var(--muted); }
+  .agent-badge.thinking { color: var(--cyan); border-color: var(--cyan); animation: pulse-glow 1.5s ease-in-out infinite; }
+  .agent-badge.evolving { color: var(--purple); border-color: var(--purple); }
+
+  .agent-action {
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.4;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .task-cost {
-    font-size: 8px;
+  .agent-action.muted { color: var(--muted); font-style: italic; }
+
+  .agent-model {
+    font-size: 9px;
     color: var(--muted);
-    margin-top: 3px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
+  .model-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--cyan);
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  /* ── MODELS TABLE ── */
+  .models-list { padding: 8px; background: var(--bg); }
+
+  .model-row {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .model-icon { font-size: 14px; flex-shrink: 0; }
+  .model-info { flex: 1; min-width: 0; }
+  .model-name {
+    font-size: 10px;
+    color: var(--cyan);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .model-calls { font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .model-cost {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .model-cost-val { font-size: 10px; color: var(--green); }
+  .model-cost-usd { font-size: 8px; color: var(--muted); }
 
   /* ── EMPTY STATE ── */
   .empty-state {
     text-align: center;
     padding: 20px;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 10px;
     line-height: 2;
   }
+  .empty-state .icon { font-size: 24px; display: block; margin-bottom: 6px; }
 
   /* ── FOOTER ── */
   .footer {
-    padding: 6px 12px;
-    border-top: 1px solid var(--border);
+    padding: 8px 14px;
+    border-top: 2px solid var(--border);
+    background: var(--panel);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 8px;
+    font-size: 9px;
     color: var(--muted);
   }
-  .dot {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: var(--green);
-    box-shadow: 0 0 4px var(--green);
-    animation: pulse-glow 1s ease-in-out infinite;
-    margin-right: 4px;
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse-glow 1.2s ease-in-out infinite;
+    flex-shrink: 0;
   }
-  .dot.offline { background: var(--red); box-shadow: 0 0 4px var(--red); animation: none; }
-
-  /* ── EVOLUTION BADGE ── */
-  .evo-badge {
-    display: inline-block;
-    background: rgba(180,74,255,0.15);
+  .status-dot.offline {
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+    animation: none;
+  }
+  .status-dot.connecting {
+    background: var(--yellow);
+    box-shadow: 0 0 6px var(--yellow);
+    animation: blink-dot 1s ease-in-out infinite;
+  }
+  .evo-tag {
+    background: rgba(196,77,255,0.15);
     border: 1px solid var(--purple);
     color: var(--purple);
-    font-size: 7px;
+    font-size: 8px;
     padding: 2px 6px;
-    text-shadow: 0 0 4px var(--purple);
+    animation: pulse-glow 1.5s ease-in-out infinite;
   }
+
+  /* Scrollable body */
+  body { overflow-y: auto; }
 </style>
 </head>
 <body>
 
+<!-- ── HEADER ── -->
 <div class="header">
-  <h1>⟁ OUROBOROS</h1>
   <div>
-    <span class="sha" id="sha">loading...</span>
+    <div class="header-title">⟁ УРО<span>БОРОС</span></div>
+    <div class="header-sub">Монитор агентов</div>
+  </div>
+  <div class="header-right">
+    <div class="sha-badge" id="sha-badge">загрузка...</div>
   </div>
 </div>
 
-<!-- PIXEL OFFICE -->
+<!-- ── PIXEL OFFICE ── -->
 <div class="office-wrapper" id="office">
   <div class="office-bg"></div>
   <div class="scan-line"></div>
   <div class="office-floor"></div>
 </div>
 
-<!-- STATS -->
+<!-- ── STATS ── -->
 <div class="stats-bar">
   <div class="stat-box">
-    <span class="val green" id="workers">-</span>
-    <span class="lbl">WORKERS</span>
+    <span class="stat-val green" id="stat-workers">–</span>
+    <span class="stat-lbl">Агентов</span>
   </div>
   <div class="stat-box">
-    <span class="val" id="running">-</span>
-    <span class="lbl">RUNNING</span>
+    <span class="stat-val" id="stat-running">–</span>
+    <span class="stat-lbl">Активных</span>
   </div>
   <div class="stat-box">
-    <span class="val yellow" id="calls">-</span>
-    <span class="lbl">API CALLS</span>
+    <span class="stat-val yellow" id="stat-calls">–</span>
+    <span class="stat-lbl">Запросов</span>
   </div>
 </div>
 
-<!-- BUDGET -->
+<!-- ── BUDGET ── -->
 <div class="budget-section">
-  <div class="budget-label">
-    <span>BUDGET</span>
-    <span id="budget-text">$0.00 / $50.00</span>
+  <div class="budget-row">
+    <span class="budget-lbl">БЮДЖЕТ</span>
+    <span class="budget-val" id="budget-val">$0.0000 / $50.00</span>
   </div>
   <div class="budget-track">
     <div class="budget-fill" id="budget-fill" style="width:0%"></div>
   </div>
+  <div class="budget-pct" id="budget-pct">0% использовано</div>
 </div>
 
-<!-- TASKS -->
-<div class="section-title">▸ ACTIVE AGENTS</div>
-<div class="task-list" id="task-list">
+<!-- ── AGENTS ── -->
+<div class="section-title">Агенты</div>
+<div class="agents-list" id="agents-list">
   <div class="empty-state">
-    ··· NO ACTIVE AGENTS ···<br>
-    AWAITING COMMANDS
+    <span class="icon">💤</span>
+    Нет активных агентов<br>
+    Ожидание задач...
   </div>
 </div>
 
-<!-- MODELS -->
-<div class="section-title">▸ MODEL USAGE</div>
-<div class="task-list" id="model-list"></div>
+<!-- ── MODELS ── -->
+<div class="section-title">Используемые модели</div>
+<div class="models-list" id="models-list">
+  <div class="empty-state">
+    <span class="icon">📊</span>
+    Нет данных о запросах
+  </div>
+</div>
 
+<!-- ── FOOTER ── -->
 <div class="footer">
-  <span><span class="dot" id="status-dot"></span><span id="status-text">connecting...</span></span>
-  <span id="evo-badge" style="display:none" class="evo-badge">⟳ EVOLVING</span>
-  <span id="uptime">uptime: --</span>
+  <div class="status-indicator">
+    <div class="status-dot connecting" id="status-dot"></div>
+    <span id="status-text">подключение...</span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span id="evo-tag" class="evo-tag" style="display:none">⟳ ЭВОЛЮЦИЯ</span>
+    <span id="uptime-text">–</span>
+  </div>
 </div>
 
 <script>
-// Telegram Mini App init
+// ── TELEGRAM INIT ──
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
-  // Apply Telegram theme colors if available
-  if (tg.colorScheme === 'light') {
-    document.documentElement.style.setProperty('--bg', '#f0f0f8');
-    document.documentElement.style.setProperty('--panel', '#ffffff');
-    document.documentElement.style.setProperty('--text', '#1a1a2e');
-    document.documentElement.style.setProperty('--border', '#d0d0e8');
-  }
 }
 
-// ── PIXEL CHARACTERS ──
-const COLORS = [
-  { head: '#ff6b9d', body: '#c44dff', leg: '#6b4dff' },
-  { head: '#ffd700', body: '#ff8c00', leg: '#ff4500' },
-  { head: '#39ff14', body: '#00cc44', leg: '#006622' },
-  { head: '#00ffff', body: '#0099cc', leg: '#005588' },
-  { head: '#ff9966', body: '#cc6644', leg: '#883322' },
+// ── AGENT VISUAL CONFIG ──
+const AGENT_COLORS = [
+  { head: '#ff6b9d', body: '#d44dcc', leg: '#8b2d9f', arm: '#d44dcc' },
+  { head: '#ffd700', body: '#e07800', leg: '#a05000', arm: '#e07800' },
+  { head: '#39ff14', body: '#00aa44', leg: '#006622', arm: '#00aa44' },
+  { head: '#00e5ff', body: '#0077aa', leg: '#004488', arm: '#0077aa' },
+  { head: '#ff9966', body: '#cc4422', leg: '#881100', arm: '#cc4422' },
 ];
 
-function createPixelChar(slot, colorIdx, state) {
-  const c = COLORS[colorIdx % COLORS.length];
-  const x = 20 + slot * 70;
-  const animClass = state === 'running' ? 'anim-type' : state === 'walking' ? 'anim-walk' : 'anim-idle';
+const EMOJIS = ['🤖', '🦾', '⚡', '🔮', '🧠'];
+
+const STATE_LABELS = {
+  running:  { ru: '● РАБОТАЕТ',  cls: 'running',  bubble: '>>> работает...',  anim: 'anim-type'  },
+  thinking: { ru: '◎ ДУМАЕТ',    cls: 'thinking', bubble: '... думает ...',   anim: 'anim-think' },
+  evolving: { ru: '⟳ ЭВОЛЮЦИЯ',  cls: 'evolving', bubble: '⟳ эволюция',      anim: 'anim-think' },
+  waiting:  { ru: '○ ОЖИДАЕТ',   cls: 'waiting',  bubble: 'ждёт задачу',      anim: 'anim-idle'  },
+};
+
+function fmtUptime(sec) {
+  sec = Math.floor(sec);
+  if (sec < 60) return sec + 'с';
+  if (sec < 3600) return Math.floor(sec/60) + 'м ' + (sec%60) + 'с';
+  return Math.floor(sec/3600) + 'ч ' + Math.floor((sec%3600)/60) + 'м';
+}
+
+function fmtModel(m) {
+  return m
+    .replace('openai-codex/', 'Codex/')
+    .replace('nvidia/', '')
+    .replace('meta/', '')
+    .replace('openai/', '');
+}
+
+function modelIcon(m) {
+  if (m.includes('codex') || m.includes('gpt')) return '🧠';
+  if (m.includes('nvidia') || m.includes('nemotron')) return '🟢';
+  if (m.includes('llama')) return '🦙';
+  if (m.includes('mistral') || m.includes('devstral')) return '🌬️';
+  if (m.includes('qwen')) return '🌐';
+  if (m.includes('deepseek')) return '🔍';
+  return '⚙️';
+}
+
+// ── PIXEL OFFICE RENDERER ──
+function buildChar(slot, colorIdx, state) {
+  const c = AGENT_COLORS[colorIdx % AGENT_COLORS.length];
+  const stateInfo = STATE_LABELS[state] || STATE_LABELS.waiting;
+  const deskX = 14 + slot * 76;
+  const charX = deskX + 9;
+  const bubbleX = charX + 7;
 
   return `
-    <div class="agent-char ${animClass}" style="left:${x}px" data-slot="${slot}">
-      <div class="head" style="background:${c.head};border-left:2px solid rgba(0,0,0,0.3);border-right:2px solid rgba(255,255,255,0.2)">
-        <div style="width:2px;height:2px;background:#000;position:absolute;top:3px;left:3px;border-radius:50%"></div>
-        <div style="width:2px;height:2px;background:#000;position:absolute;top:3px;right:3px;border-radius:50%"></div>
+    <div class="desk ${state === 'running' ? 'running' : ''}" style="left:${deskX}px"></div>
+    <div class="agent-char ${stateInfo.anim}" style="left:${charX}px" title="Агент ${slot+1}">
+      <div class="char-head" style="background:${c.head};border:2px solid rgba(0,0,0,0.3)">
+        <div class="char-arm-l" style="background:${c.arm}"></div>
+        <div class="char-arm-r" style="background:${c.arm}"></div>
       </div>
-      <div class="body" style="background:${c.body};border-left:1px solid rgba(0,0,0,0.2)"></div>
-      <div class="legs">
-        <div class="leg" style="background:${c.leg}"></div>
-        <div class="leg" style="background:${c.leg}"></div>
+      <div class="char-body" style="background:${c.body}"></div>
+      <div class="char-legs">
+        <div class="char-leg" style="background:${c.leg}"></div>
+        <div class="char-leg" style="background:${c.leg}"></div>
       </div>
-    </div>`;
+    </div>
+    <div class="speech-bubble ${stateInfo.cls}" style="left:${bubbleX}px">${stateInfo.bubble}</div>
+    <div class="name-tag" style="left:${bubbleX}px">А${slot+1}</div>
+  `;
 }
 
-function createDesk(slot) {
-  const x = 10 + slot * 70;
-  return `<div class="desk" style="left:${x}px"></div>`;
-}
-
-function renderOffice(workers, running) {
+function renderOffice(workersTotal, runningCount) {
   const office = document.getElementById('office');
+  const n = Math.max(workersTotal || 0, 1);
   let html = '<div class="office-bg"></div><div class="scan-line"></div><div class="office-floor"></div>';
-
-  for (let i = 0; i < Math.max(workers, 2); i++) {
-    html += createDesk(i);
-    const state = i < running ? 'running' : 'idle';
-    html += createPixelChar(i, i, state);
+  for (let i = 0; i < n; i++) {
+    const state = i < runningCount ? 'running' : 'waiting';
+    html += buildChar(i, i, state);
   }
   office.innerHTML = html;
 }
 
-// ── API POLLING ──
-let lastState = null;
+// ── AGENT CARDS ──
+function renderAgents(state) {
+  const list = document.getElementById('agents-list');
+  const total = Math.max(state.workers_total || 0, state.workers_alive || 0);
+  const running = state.running_count || 0;
+  const evolving = state.evolution_enabled ? 1 : 0;
+
+  if (total === 0) {
+    list.innerHTML = `<div class="empty-state"><span class="icon">💤</span>Нет активных агентов<br>Ожидание задач...</div>`;
+    return;
+  }
+
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    const isRunning = i < running;
+    const isEvolving = isRunning && evolving && i === 0;
+    const stateKey = isEvolving ? 'evolving' : isRunning ? 'running' : 'waiting';
+    const stateInfo = STATE_LABELS[stateKey];
+    const emoji = EMOJIS[i % EMOJIS.length];
+
+    const modelName = isRunning
+      ? fmtModel(state.active_model || 'nvidia/nemotron')
+      : '–';
+
+    const actionText = isRunning
+      ? (isEvolving ? '⟳ Самосовершенствование системы' : '>>> Обрабатывает задачу...')
+      : 'Ожидает следующую задачу';
+
+    html += `
+    <div class="agent-card ${stateKey}">
+      <div class="agent-top">
+        <div class="agent-name">
+          <span class="agent-emoji">${emoji}</span>АГЕНТ-${i+1}
+        </div>
+        <div class="agent-badge ${stateKey}">${stateInfo.ru}</div>
+      </div>
+      <div class="agent-action ${isRunning ? '' : 'muted'}">${actionText}</div>
+      ${isRunning ? `<div class="agent-model"><span class="model-dot"></span>${modelName}</div>` : ''}
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+// ── MODELS TABLE ──
+function renderModels(cost) {
+  const list = document.getElementById('models-list');
+  if (!cost || !cost.by_model) {
+    list.innerHTML = `<div class="empty-state"><span class="icon">📊</span>Нет данных о запросах</div>`;
+    return;
+  }
+
+  const models = Object.entries(cost.by_model)
+    .sort((a, b) => b[1].calls - a[1].calls);
+
+  if (models.length === 0) {
+    list.innerHTML = `<div class="empty-state"><span class="icon">📊</span>Нет данных о запросах</div>`;
+    return;
+  }
+
+  list.innerHTML = models.map(([model, d]) => {
+    const icon = modelIcon(model);
+    const name = fmtModel(model);
+    const calls = d.calls || 0;
+    const cost_usd = (d.cost || 0).toFixed(4);
+    return `
+    <div class="model-row">
+      <span class="model-icon">${icon}</span>
+      <div class="model-info">
+        <div class="model-name">${name}</div>
+        <div class="model-calls">${calls} ${calls === 1 ? 'запрос' : calls < 5 ? 'запроса' : 'запросов'}</div>
+      </div>
+      <div class="model-cost">
+        <div class="model-cost-val">${calls}</div>
+        <div class="model-cost-usd">$${cost_usd}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── MAIN UPDATE ──
 let errorCount = 0;
 
-function fmtUptime(sec) {
-  if (sec < 60) return sec + 's';
-  if (sec < 3600) return Math.floor(sec/60) + 'm ' + (sec%60) + 's';
-  return Math.floor(sec/3600) + 'h ' + Math.floor((sec%3600)/60) + 'm';
+function updateStatus(online) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  if (online) {
+    dot.className = 'status-dot';
+    txt.textContent = 'онлайн';
+    errorCount = 0;
+  } else {
+    errorCount++;
+    if (errorCount > 3) {
+      dot.className = 'status-dot offline';
+      txt.textContent = 'нет связи';
+    } else {
+      dot.className = 'status-dot connecting';
+      txt.textContent = 'переподключение...';
+    }
+  }
 }
 
-function fmtModel(m) {
-  return m.replace('nvidia/', '').replace('openai-codex/', '').replace('openai/', '').split('-').slice(0,3).join('-');
-}
-
-async function fetchState() {
+async function fetchAndUpdate() {
   try {
     const [stateRes, costRes] = await Promise.all([
       fetch('/api/state'),
-      fetch('/api/cost-breakdown')
+      fetch('/api/cost-breakdown'),
     ]);
 
-    if (!stateRes.ok) throw new Error('API error');
+    if (!stateRes.ok) throw new Error('api error');
     const state = await stateRes.json();
     const cost = costRes.ok ? await costRes.json() : {};
 
-    errorCount = 0;
-    updateUI(state, cost);
-  } catch(e) {
-    errorCount++;
-    const dot = document.getElementById('status-dot');
-    const txt = document.getElementById('status-text');
-    if (dot) { dot.className = 'dot offline'; }
-    if (txt) { txt.textContent = 'disconnected'; }
-  }
-}
+    updateStatus(true);
 
-function updateUI(state, cost) {
-  // Status dot
-  const dot = document.getElementById('status-dot');
-  const txt = document.getElementById('status-text');
-  if (dot) { dot.className = 'dot'; }
-  if (txt) { txt.textContent = 'live'; }
+    // SHA badge
+    const sha = document.getElementById('sha-badge');
+    if (sha && state.sha) sha.textContent = 'rev:' + state.sha.slice(0,7);
 
-  // Header SHA
-  const sha = document.getElementById('sha');
-  if (sha && state.sha) { sha.textContent = state.sha.slice(0,7); }
+    // Stats
+    document.getElementById('stat-workers').textContent = state.workers_alive ?? '–';
+    document.getElementById('stat-running').textContent = state.running_count ?? '–';
+    document.getElementById('stat-calls').textContent   = state.spent_calls ?? '–';
 
-  // Stats
-  const wEl = document.getElementById('workers');
-  const rEl = document.getElementById('running');
-  const cEl = document.getElementById('calls');
-  if (wEl) wEl.textContent = state.workers_alive || 0;
-  if (rEl) rEl.textContent = state.running_count || 0;
-  if (cEl) cEl.textContent = state.spent_calls || 0;
-
-  // Budget
-  const spent = state.spent_usd || 0;
-  const limit = state.budget_limit || 50;
-  const pct = Math.min(100, (spent / limit) * 100);
-  const fill = document.getElementById('budget-fill');
-  const btxt = document.getElementById('budget-text');
-  if (fill) {
-    fill.style.width = Math.max(2, pct) + '%';
+    // Budget
+    const spent = state.spent_usd || 0;
+    const limit = state.budget_limit || 50;
+    const pct = Math.min(100, (spent / limit) * 100);
+    document.getElementById('budget-val').textContent =
+      `$${spent.toFixed(4)} / $${limit.toFixed(2)}`;
+    document.getElementById('budget-pct').textContent =
+      `${pct.toFixed(1)}% использовано`;
+    const fill = document.getElementById('budget-fill');
+    fill.style.width = Math.max(1, pct) + '%';
     fill.className = 'budget-fill' + (pct > 80 ? ' danger' : pct > 50 ? ' warn' : '');
-  }
-  if (btxt) btxt.textContent = `$${spent.toFixed(4)} / $${limit.toFixed(2)}`;
 
-  // Office visualization
-  renderOffice(state.workers_total || 2, state.running_count || 0);
+    // Uptime
+    const up = document.getElementById('uptime-text');
+    if (up && state.uptime != null) up.textContent = 'up: ' + fmtUptime(state.uptime);
 
-  // Evolution badge
-  const evoBadge = document.getElementById('evo-badge');
-  if (evoBadge) evoBadge.style.display = state.evolution_enabled ? 'inline-block' : 'none';
+    // Evolution tag
+    const evo = document.getElementById('evo-tag');
+    if (evo) evo.style.display = state.evolution_enabled ? 'inline' : 'none';
 
-  // Uptime
-  const uptimeEl = document.getElementById('uptime');
-  if (uptimeEl) uptimeEl.textContent = 'up: ' + fmtUptime(state.uptime || 0);
+    // Office + agents + models
+    renderOffice(state.workers_total || 0, state.running_count || 0);
+    renderAgents(state);
+    renderModels(cost);
 
-  // Tasks
-  const taskList = document.getElementById('task-list');
-  if (taskList) {
-    if (!state.running_count && !state.pending_count) {
-      taskList.innerHTML = `<div class="empty-state">··· NO ACTIVE AGENTS ···<br>AWAITING COMMANDS</div>`;
-    } else {
-      // Show worker status cards
-      let html = '';
-      const workers_alive = state.workers_alive || 0;
-      for (let i = 0; i < Math.max(workers_alive, state.workers_total || 2); i++) {
-        const isRunning = i < (state.running_count || 0);
-        html += `
-        <div class="task-card ${isRunning ? 'running' : 'idle'}">
-          <div class="task-header">
-            <span class="task-model">AGENT-${i+1}</span>
-            <span class="task-status ${isRunning ? 'running' : 'idle'}">${isRunning ? '◉ BUSY' : '○ IDLE'}</span>
-          </div>
-          <div class="task-desc">${isRunning ? '>>> processing...' : '>>> waiting for task'}</div>
-        </div>`;
-      }
-      taskList.innerHTML = html;
-    }
-  }
-
-  // Model usage
-  const modelList = document.getElementById('model-list');
-  if (modelList && cost.by_model) {
-    const models = Object.entries(cost.by_model);
-    if (models.length === 0) {
-      modelList.innerHTML = '<div class="empty-state">NO CALLS YET</div>';
-    } else {
-      modelList.innerHTML = models.map(([m, d]) => `
-        <div class="task-card">
-          <div class="task-header">
-            <span class="task-model">${fmtModel(m)}</span>
-            <span class="task-cost">${d.calls} calls</span>
-          </div>
-          <div class="task-desc" style="color:var(--muted);font-size:9px">$${(d.cost||0).toFixed(6)}</div>
-        </div>`).join('');
-    }
+  } catch (e) {
+    updateStatus(false);
   }
 }
 
-// Poll every 3 seconds
-fetchState();
-setInterval(fetchState, 3000);
+// Start polling
+fetchAndUpdate();
+setInterval(fetchAndUpdate, 3000);
 </script>
 </body>
 </html>

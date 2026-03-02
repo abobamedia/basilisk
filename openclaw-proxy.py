@@ -41,7 +41,12 @@ log = logging.getLogger("openclaw-proxy")
 # ── OpenClaw CLI call ────────────────────────────────────────────────────────
 
 def build_prompt(messages: list) -> str:
-    """Combine chat messages into a single prompt string."""
+    """Extract only user/assistant messages — skip system prompts.
+
+    The openclaw agent has its own identity in IDENTITY.md/SOUL.md.
+    Injecting an external system prompt causes identity conflicts where
+    the agent rejects the Ouroboros persona as "not me".
+    """
     parts = []
     for m in messages:
         role = m.get("role", "user")
@@ -54,7 +59,7 @@ def build_prompt(messages: list) -> str:
                 if isinstance(p, dict) and p.get("type") == "text"
             )
         if role == "system":
-            parts.append(f"<system>{content}</system>")
+            pass  # Handled by openclaw agent's own IDENTITY.md / SOUL.md
         elif role == "assistant":
             parts.append(f"<assistant>{content}</assistant>")
         elif role == "user":

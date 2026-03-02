@@ -67,8 +67,9 @@ def call_openclaw(prompt: str) -> str:
     env = {**os.environ, "HOME": os.path.expanduser("~")}
 
     try:
+        session_id = uuid.uuid4().hex
         result = subprocess.run(
-            ["openclaw", "agent", "--agent", "main", "-m", prompt],
+            ["openclaw", "agent", "--agent", "main", "--session-id", session_id, "-m", prompt],
             capture_output=True,
             text=True,
             timeout=OPENCLAW_TIMEOUT,

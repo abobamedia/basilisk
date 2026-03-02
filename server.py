@@ -413,11 +413,9 @@ def _run_supervisor(settings: dict) -> None:
 
         except Exception as exc:
             crash_count += 1
-            log.error("Supervisor loop crash #%d: %s", crash_count, exc, exc_info=True)
-            if crash_count >= 3:
-                log.critical("Supervisor exceeded max retries.")
-                return
-            time.sleep(min(30, 2 ** crash_count))
+            wait = min(120, 5 * crash_count)
+            log.error("Supervisor loop crash #%d: %s — retrying in %ds", crash_count, exc, wait)
+            time.sleep(wait)
 
 
 def _handle_restart_in_supervisor(evt: Dict[str, Any], ctx: Any) -> None:

@@ -4,7 +4,10 @@ openclaw-proxy.py — OpenAI-compatible REST proxy for OpenClaw/Codex.
 
 Runs as `openclaw` user on port 18780.
 Wraps `openclaw agent -m "message"` CLI calls.
-Exposes /v1/chat/completions in OpenAI format.
+Exposes /v1/chat/completions in OpenAI format with tool calling support.
+
+Tool calling is simulated via prompt injection: tool schemas are appended
+to the prompt and the model responds with JSON when it wants to call a tool.
 
 Docker containers can reach this via host.docker.internal:18780
 (requires extra_hosts: host-gateway in docker-compose.yml).
@@ -14,6 +17,7 @@ import http.server
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -38,31 +42,162 @@ logging.basicConfig(
 log = logging.getLogger("openclaw-proxy")
 
 
-# ── OpenClaw CLI call ────────────────────────────────────────────────────────
+# ── Prompt Building ───────────────────────────────────────────────────────────
 
-def build_prompt(messages: list) -> str:
-    """Combine chat messages into a single prompt string."""
+def _flatten_content(content):
+    """Flatten multipart content (e.g. vision messages) to string."""
+    if isinstance(content, list):
+        return " ".join(
+            p.get("text", "")
+            for p in content
+            if isinstance(p, dict) and p.get("type") == "text"
+        )
+    return content or ""
+
+
+def build_prompt(messages, tools=None):
+    """Combine chat messages into a single prompt string.
+
+    If tools is provided, appends tool calling instructions so the model
+    knows how to respond with structured tool_calls JSON.
+    """
     parts = []
+
     for m in messages:
         role = m.get("role", "user")
-        content = m.get("content", "")
-        # Flatten multipart content (e.g. vision messages)
-        if isinstance(content, list):
-            content = " ".join(
-                p.get("text", "")
-                for p in content
-                if isinstance(p, dict) and p.get("type") == "text"
-            )
+        content = _flatten_content(m.get("content", ""))
+
         if role == "system":
             parts.append(f"<system>{content}</system>")
+
         elif role == "assistant":
-            parts.append(f"<assistant>{content}</assistant>")
+            tool_calls = m.get("tool_calls")
+            if tool_calls:
+                # Represent a previous assistant tool call in the history
+                tc_json = json.dumps({"tool_calls": tool_calls}, ensure_ascii=False)
+                parts.append(f"<assistant_tool_calls>{tc_json}</assistant_tool_calls>")
+            else:
+                parts.append(f"<assistant>{content}</assistant>")
+
+        elif role == "tool":
+            # Result returned after a tool execution
+            call_id = m.get("tool_call_id", "")
+            name = m.get("name", "tool")
+            parts.append(
+                f"<tool_result name=\"{name}\" call_id=\"{call_id}\">{content}</tool_result>"
+            )
+
         elif role == "user":
             parts.append(content)
+
+    # Append tool calling instructions if tools are provided
+    if tools:
+        tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
+        example_id = "call_" + uuid.uuid4().hex[:8]
+        instruction = (
+            "<tool_instructions>\n"
+            "You have access to the following tools.\n"
+            "To call a tool, respond with ONLY this JSON — no markdown fences, no explanation:\n"
+            '{"tool_calls": [{"id": "' + example_id + '", "type": "function", '
+            '"function": {"name": "TOOL_NAME", "arguments": "{\\"param\\": \\"value\\"}"}}]}\n'
+            "\n"
+            "Rules:\n"
+            "  - 'arguments' must be a JSON-encoded STRING (not an object)\n"
+            "  - Put all needed tool calls in the array (can be multiple)\n"
+            "  - If no tool is needed, respond normally with plain text\n"
+            "\n"
+            "Available tools:\n"
+            f"{tools_json}\n"
+            "</tool_instructions>"
+        )
+        parts.append(instruction)
+
     return "\n\n".join(parts)
 
 
-def call_openclaw(prompt: str) -> str:
+# ── Tool Call Parsing ─────────────────────────────────────────────────────────
+
+def _normalize_tool_calls(raw_calls):
+    """Normalize tool calls list to proper OpenAI format.
+
+    Handles cases where 'arguments' was returned as a dict instead of string.
+    """
+    result = []
+    for tc in raw_calls:
+        if not isinstance(tc, dict):
+            continue
+        fn = tc.get("function", {})
+        name = fn.get("name", "")
+        if not name:
+            continue
+
+        arguments = fn.get("arguments", "{}")
+        if isinstance(arguments, dict):
+            arguments = json.dumps(arguments, ensure_ascii=False)
+        elif not isinstance(arguments, str):
+            arguments = json.dumps(arguments, ensure_ascii=False)
+
+        result.append({
+            "id": tc.get("id") or ("call_" + uuid.uuid4().hex[:8]),
+            "type": "function",
+            "function": {
+                "name": name,
+                "arguments": arguments,
+            },
+        })
+    return result
+
+
+def parse_tool_calls(text):
+    """Try to parse text as tool calls JSON.
+
+    Returns (text_content_or_None, tool_calls_or_None).
+    If tool_calls is not None, text_content will be None (model chose to call a tool).
+    """
+    stripped = text.strip()
+
+    # Case 1: response is a bare JSON object
+    if stripped.startswith("{"):
+        try:
+            data = json.loads(stripped)
+            raw = data.get("tool_calls")
+            if raw and isinstance(raw, list):
+                normalized = _normalize_tool_calls(raw)
+                if normalized:
+                    return None, normalized
+        except json.JSONDecodeError:
+            pass
+
+    # Case 2: JSON embedded somewhere in text (after explanation etc.)
+    match = re.search(r'\{\s*"tool_calls"\s*:', stripped, re.DOTALL)
+    if match:
+        start = match.start()
+        depth = 0
+        end = start
+        for i, ch in enumerate(stripped[start:]):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = start + i
+                    break
+        try:
+            data = json.loads(stripped[start : end + 1])
+            raw = data.get("tool_calls")
+            if raw and isinstance(raw, list):
+                normalized = _normalize_tool_calls(raw)
+                if normalized:
+                    return None, normalized
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    return text, None
+
+
+# ── OpenClaw CLI call ────────────────────────────────────────────────────────
+
+def call_openclaw(prompt):
     """Run `openclaw agent -m <prompt>` and return text response."""
     env = {**os.environ, "HOME": os.path.expanduser("~")}
 
@@ -99,7 +234,6 @@ def call_openclaw(prompt: str) -> str:
     # Try to parse as JSON (some openclaw versions return JSON)
     try:
         data = json.loads(stdout)
-        # Common fields
         text = (
             data.get("result")
             or data.get("response")
@@ -109,7 +243,6 @@ def call_openclaw(prompt: str) -> str:
         )
         if text:
             return str(text)
-        # If JSON but no known field, return pretty-printed
         return json.dumps(data, ensure_ascii=False, indent=2)
     except (json.JSONDecodeError, TypeError):
         pass
@@ -127,7 +260,7 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
-    def _send_json(self, code: int, data: dict):
+    def _send_json(self, code, data):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -136,7 +269,7 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _read_body(self) -> bytes:
+    def _read_body(self):
         length = int(self.headers.get("Content-Length", 0))
         return self.rfile.read(length) if length else b""
 
@@ -160,30 +293,14 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(200, {
                 "object": "list",
                 "data": [
-                    {
-                        "id": "openai-codex/gpt-5.3-codex",
-                        "object": "model",
-                        "created": 1700000000,
-                        "owned_by": "openai",
-                    },
-                    {
-                        "id": "openai-codex/gpt-5.2-codex",
-                        "object": "model",
-                        "created": 1700000000,
-                        "owned_by": "openai",
-                    },
-                    {
-                        "id": "openai-codex/o3",
-                        "object": "model",
-                        "created": 1700000000,
-                        "owned_by": "openai",
-                    },
-                    {
-                        "id": "openai-codex/o4-mini",
-                        "object": "model",
-                        "created": 1700000000,
-                        "owned_by": "openai",
-                    },
+                    {"id": "openai-codex/gpt-5.3-codex", "object": "model",
+                     "created": 1700000000, "owned_by": "openai"},
+                    {"id": "openai-codex/gpt-5.2-codex", "object": "model",
+                     "created": 1700000000, "owned_by": "openai"},
+                    {"id": "openai-codex/o3", "object": "model",
+                     "created": 1700000000, "owned_by": "openai"},
+                    {"id": "openai-codex/o4-mini", "object": "model",
+                     "created": 1700000000, "owned_by": "openai"},
                 ],
             })
         else:
@@ -196,32 +313,59 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(404, {"error": {"message": "endpoint not found"}})
             return
 
-        # Parse request body
         try:
             raw = self._read_body()
             body = json.loads(raw) if raw else {}
         except (json.JSONDecodeError, ValueError) as e:
-            self._send_json(400, {"error": {"message": f"invalid JSON: {e}", "type": "invalid_request_error"}})
+            self._send_json(400, {"error": {
+                "message": f"invalid JSON: {e}",
+                "type": "invalid_request_error",
+            }})
             return
 
         messages = body.get("messages", [])
         model = body.get("model", "openai-codex/gpt-5.3-codex")
+        tools = body.get("tools") or None  # treat empty list as None
 
         if not messages:
-            self._send_json(400, {"error": {"message": "messages array is required", "type": "invalid_request_error"}})
+            self._send_json(400, {"error": {
+                "message": "messages array is required",
+                "type": "invalid_request_error",
+            }})
             return
 
-        log.info("POST /v1/chat/completions model=%s messages=%d", model, len(messages))
+        log.info(
+            "POST /v1/chat/completions model=%s messages=%d tools=%d",
+            model, len(messages), len(tools) if tools else 0,
+        )
 
-        # Build prompt and call openclaw
-        prompt = build_prompt(messages)
+        prompt = build_prompt(messages, tools)
         t0 = time.time()
         response_text = call_openclaw(prompt)
         elapsed = time.time() - t0
 
         log.info("openclaw done in %.1fs: %d chars", elapsed, len(response_text))
 
-        # Return OpenAI-compatible response
+        # Determine if response contains tool calls
+        finish_reason = "stop"
+        message = {"role": "assistant"}
+
+        if tools:
+            text_content, tool_calls = parse_tool_calls(response_text)
+            if tool_calls:
+                log.info("Detected %d tool call(s): %s",
+                         len(tool_calls),
+                         [tc["function"]["name"] for tc in tool_calls])
+                message["content"] = None
+                message["tool_calls"] = tool_calls
+                finish_reason = "tool_calls"
+            else:
+                message["content"] = text_content or response_text
+        else:
+            message["content"] = response_text
+
+        prompt_tokens = max(1, len(prompt) // 4)
+        completion_tokens = max(1, len(response_text) // 4)
         self._send_json(200, {
             "id": "chatcmpl-" + uuid.uuid4().hex[:16],
             "object": "chat.completion",
@@ -230,17 +374,14 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             "choices": [
                 {
                     "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": response_text,
-                    },
-                    "finish_reason": "stop",
+                    "message": message,
+                    "finish_reason": finish_reason,
                 }
             ],
             "usage": {
-                "prompt_tokens": max(1, len(prompt) // 4),
-                "completion_tokens": max(1, len(response_text) // 4),
-                "total_tokens": max(1, (len(prompt) + len(response_text)) // 4),
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
             },
         })
 
@@ -254,12 +395,12 @@ class ThreadedHTTPServer(http.server.ThreadingHTTPServer):
 
 def main():
     log.info("=" * 60)
-    log.info("OpenClaw Proxy starting on %s:%d", HOST, PORT)
+    log.info("OpenClaw Proxy starting on %s:%d (tool calling enabled)", HOST, PORT)
     log.info("openclaw path: %s", subprocess.run(
         ["which", "openclaw"], capture_output=True, text=True
     ).stdout.strip() or "NOT FOUND")
-    import pwd
     try:
+        import pwd
         username = pwd.getpwuid(os.getuid()).pw_name
     except Exception:
         username = os.environ.get("USER", str(os.getuid()))

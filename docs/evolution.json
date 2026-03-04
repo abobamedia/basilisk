@@ -1,0 +1,1009 @@
+{
+  "generated_at": "2026-03-02T09:52:19Z",
+  "total_commits_sampled": 100,
+  "max_py_lines": 17497,
+  "max_bible_bytes": 13568,
+  "max_system_bytes": 23168,
+  "points": [
+    {
+      "ts": "2026-02-20T03:16:02+03:00",
+      "hash": "f20300a1",
+      "msg": "initial: fork from razzant/ouroboros (public) for private development",
+      "version": null,
+      "py_lines": 12870,
+      "module_count": 41,
+      "bible_bytes": 12799,
+      "system_bytes": 17452
+    },
+    {
+      "ts": "2026-02-21T18:54:21+03:00",
+      "hash": "cdd73d07",
+      "msg": "v7.0.0: native macOS app — full architecture migration",
+      "version": "7.0.0",
+      "py_lines": 15155,
+      "module_count": 50,
+      "bible_bytes": 12444,
+      "system_bytes": 18460
+    },
+    {
+      "ts": "2026-02-22T02:50:21+03:00",
+      "hash": "f4f3baab",
+      "msg": "bump: v8.0.0 — launcher/server architecture, three-tier safety, web UI",
+      "version": "8.0.0",
+      "py_lines": 17015,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18903
+    },
+    {
+      "ts": "2026-02-22T03:00:12+03:00",
+      "hash": "1bbbe613",
+      "msg": "fix: robust restart (port cleanup, poll port file) + rich log display",
+      "version": null,
+      "py_lines": 17059,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18903
+    },
+    {
+      "ts": "2026-02-22T03:09:30+03:00",
+      "hash": "768775b7",
+      "msg": "fix: use os._exit(42) + force-kill workers on restart",
+      "version": null,
+      "py_lines": 17073,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18903
+    },
+    {
+      "ts": "2026-02-22T03:23:56+03:00",
+      "hash": "c8d06983",
+      "msg": "feat: tool call logging in UI + version management page",
+      "version": null,
+      "py_lines": 17122,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18903
+    },
+    {
+      "ts": "2026-02-22T03:36:13+03:00",
+      "hash": "8edced89",
+      "msg": "release: v1.0.0 — new architecture, fresh version start",
+      "version": "1.0.0",
+      "py_lines": 17162,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18831
+    },
+    {
+      "ts": "2026-02-22T03:42:03+03:00",
+      "hash": "2d556114",
+      "msg": "fix: data dir to ~/Ouroboros/ (no TCC restrictions, visible in Finder)",
+      "version": null,
+      "py_lines": 17170,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18791
+    },
+    {
+      "ts": "2026-02-22T03:48:17+03:00",
+      "hash": "f8384f3b",
+      "msg": "fix: enforce ~/Documents/Ouroboros path everywhere, add version history",
+      "version": null,
+      "py_lines": 17170,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18831
+    },
+    {
+      "ts": "2026-02-22T03:55:00+03:00",
+      "hash": "aa8265e6",
+      "msg": "fix: use ~/Ouroboros/ path — no TCC restrictions, works everywhere",
+      "version": null,
+      "py_lines": 17170,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18791
+    },
+    {
+      "ts": "2026-02-22T03:59:01+03:00",
+      "hash": "0a7ca178",
+      "msg": "fix: WebSocketBridge -> LocalChatBridge, add broadcast to push_log/send_message",
+      "version": null,
+      "py_lines": 17171,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18791
+    },
+    {
+      "ts": "2026-02-22T04:08:25+03:00",
+      "hash": "cc4bd20b",
+      "msg": "fix: broadcast chat with 'content' key (UI expects msg.content, not msg.text)",
+      "version": null,
+      "py_lines": 17171,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18791
+    },
+    {
+      "ts": "2026-02-22T04:18:19+03:00",
+      "hash": "c35b4653",
+      "msg": "fix: api_state used nonexistent get_budget_limit — use TOTAL_BUDGET_LIMIT",
+      "version": null,
+      "py_lines": 17171,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18791
+    },
+    {
+      "ts": "2026-02-22T04:23:21+03:00",
+      "hash": "201c6ff0",
+      "msg": "fix: disable devtools panel on startup (debug=False)",
+      "version": null,
+      "py_lines": 17171,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 18791
+    },
+    {
+      "ts": "2026-02-22T04:26:00+03:00",
+      "hash": "ea37d020",
+      "msg": "release: v1.0.1 — bugfixes, versioning rules in SYSTEM.md",
+      "version": "1.0.1",
+      "py_lines": 17171,
+      "module_count": 53,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T14:22:34+03:00",
+      "hash": "5425b991",
+      "msg": "v2.0.0: major cleanup — remove Flet/Colab/Telegram legacy",
+      "version": "2.0.0",
+      "py_lines": 17495,
+      "module_count": 55,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T14:24:57+03:00",
+      "hash": "7ee8f213",
+      "msg": "fix: add config.py and message_bus.py to core sync list",
+      "version": null,
+      "py_lines": 17497,
+      "module_count": 55,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T14:32:42+03:00",
+      "hash": "2cfc8d10",
+      "msg": "fix: delete dead files from git, fix telegram->message_bus imports",
+      "version": null,
+      "py_lines": 13788,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T14:36:26+03:00",
+      "hash": "a898f9ba",
+      "msg": "fix: remove stale token= arg from LocalChatBridge()",
+      "version": null,
+      "py_lines": 13788,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T14:41:44+03:00",
+      "hash": "4ba3b3d3",
+      "msg": "fix: settings page shows API keys, reset button does full reset",
+      "version": null,
+      "py_lines": 13801,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T14:45:51+03:00",
+      "hash": "444a0dbe",
+      "msg": "fix: settings display + reset button behavior",
+      "version": null,
+      "py_lines": 13796,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T14:54:21+03:00",
+      "hash": "9e49a603",
+      "msg": "docs: comprehensive architecture reference",
+      "version": null,
+      "py_lines": 13796,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T15:03:38+03:00",
+      "hash": "ac128fac",
+      "msg": "fix: zero-orphan shutdown guarantee + document in architecture",
+      "version": null,
+      "py_lines": 13813,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T15:12:54+03:00",
+      "hash": "b6c24c6a",
+      "msg": "release: v2.0.0 — logo in web UI, new PyInstaller spec, DMG build",
+      "version": "2.0.0",
+      "py_lines": 13813,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19394
+    },
+    {
+      "ts": "2026-02-22T16:42:18+03:00",
+      "hash": "353feba0",
+      "msg": "v2.1.0: crash-proof PID lock, persist BG consciousness, fix stale refs",
+      "version": "2.1.0",
+      "py_lines": 13831,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19422
+    },
+    {
+      "ts": "2026-02-22T17:40:33+03:00",
+      "hash": "cda79285",
+      "msg": "v2.2.0: About page, unread badge, fix UI sync, rename drive_* tools",
+      "version": "2.2.0",
+      "py_lines": 13838,
+      "module_count": 43,
+      "bible_bytes": 12444,
+      "system_bytes": 19422
+    },
+    {
+      "ts": "2026-02-22T22:51:37+03:00",
+      "hash": "c8c226ae",
+      "msg": "v2.4.0: Crimson Pulse UI, panic emergency stop, Claude Code CLI, cost dashboard",
+      "version": "2.4.0",
+      "py_lines": 14251,
+      "module_count": 43,
+      "bible_bytes": 13172,
+      "system_bytes": 19872
+    },
+    {
+      "ts": "2026-02-23T00:51:50+03:00",
+      "hash": "28c0c3b2",
+      "msg": "v3.0.0: Local model support, typing indicator, review fixes",
+      "version": "3.0.0",
+      "py_lines": 14844,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 19872
+    },
+    {
+      "ts": "2026-02-23T02:09:24+03:00",
+      "hash": "58daf56a",
+      "msg": "v3.1.0: Fix USE_LOCAL_MAIN, consciousness double-budget, sync_core_files safety ",
+      "version": "3.1.0",
+      "py_lines": 14676,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T12:22:44+03:00",
+      "hash": "56e23e5a",
+      "msg": "fix: add typing indicator handler (ws.on typing, dots animation, Thinking... bad",
+      "version": null,
+      "py_lines": 14676,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T12:32:47+03:00",
+      "hash": "342e62f6",
+      "msg": "fix: rename remaining get_tg() to get_bridge() in workers.py",
+      "version": null,
+      "py_lines": 14676,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T12:46:45+03:00",
+      "hash": "92dd97c0",
+      "msg": "fix: repair 6 broken tests (drive->data rename, skip vendored dirs, relax size l",
+      "version": null,
+      "py_lines": 14680,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T12:56:15+03:00",
+      "hash": "5b4e4b98",
+      "msg": "fix: self-modification survival — never reset to origin on restart",
+      "version": null,
+      "py_lines": 14661,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T13:02:28+03:00",
+      "hash": "d5e37c9e",
+      "msg": "fix: persist chat history across page reloads via sessionStorage",
+      "version": null,
+      "py_lines": 14661,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T14:57:15+03:00",
+      "hash": "2a3d59e1",
+      "msg": "fix: local model — flatten multipart content + respect USE_LOCAL_FALLBACK",
+      "version": null,
+      "py_lines": 14670,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T15:10:18+03:00",
+      "hash": "bc544726",
+      "msg": "fix: local model context — cap max_tokens, default n_ctx=4096, sane soft_cap",
+      "version": null,
+      "py_lines": 14682,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T15:39:42+03:00",
+      "hash": "f80393b9",
+      "msg": "fix: default n_ctx 4096->16384 — full Ouroboros prompt needs ~14K tokens",
+      "version": null,
+      "py_lines": 14682,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T15:43:34+03:00",
+      "hash": "df8afdad",
+      "msg": "fix: aggressive context trimming for local models — clip all blocks proportional",
+      "version": null,
+      "py_lines": 14704,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T15:52:04+03:00",
+      "hash": "cf6c2016",
+      "msg": "revert: undo BIBLE/context clipping (forbidden by constitution) + blood-red assi",
+      "version": null,
+      "py_lines": 14682,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T16:17:54+03:00",
+      "hash": "6ce3dd84",
+      "msg": "feat: add Context Length field to Local Model settings UI",
+      "version": null,
+      "py_lines": 14682,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T18:30:27+03:00",
+      "hash": "9dcd56e7",
+      "msg": "fix: show (local) tag in error messages + default model Qwen2.5-7B-Instruct q3_k",
+      "version": null,
+      "py_lines": 14684,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T19:19:47+03:00",
+      "hash": "7e3561ac",
+      "msg": "feat: redesign wizard (crimson theme, local model presets, OR optional) + new id",
+      "version": null,
+      "py_lines": 14753,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T19:34:56+03:00",
+      "hash": "a6747a09",
+      "msg": "fix: empty default LOCAL_MODEL_SOURCE so wizard shows on fresh install",
+      "version": null,
+      "py_lines": 14753,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20406
+    },
+    {
+      "ts": "2026-02-23T20:08:47+03:00",
+      "hash": "a37e41f8",
+      "msg": "fix: web_search timeout 120->180s, default model gpt-5.2, add search tips to SYS",
+      "version": null,
+      "py_lines": 14753,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20833
+    },
+    {
+      "ts": "2026-02-23T20:14:44+03:00",
+      "hash": "922055e7",
+      "msg": "docs: update ARCHITECTURE.md (local model settings, websearch model) + README ch",
+      "version": null,
+      "py_lines": 14753,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20833
+    },
+    {
+      "ts": "2026-02-23T20:46:56+03:00",
+      "hash": "e3e5e613",
+      "msg": "v3.2.0: fix stale drive_* refs, dead code, docs overhaul",
+      "version": "3.2.0",
+      "py_lines": 14753,
+      "module_count": 44,
+      "bible_bytes": 13172,
+      "system_bytes": 20833
+    },
+    {
+      "ts": "2026-02-23T21:41:56+03:00",
+      "hash": "aff69fda",
+      "msg": "v3.3.0: mutable identity doctrine, dual version header, cost accounting fix",
+      "version": "3.3.0",
+      "py_lines": 14719,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 21018
+    },
+    {
+      "ts": "2026-02-23T23:43:34+03:00",
+      "hash": "defb1555",
+      "msg": "v3.3.1: identity journal, change propagation checklist, gitignore safety net",
+      "version": "3.3.1",
+      "py_lines": 14899,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-23T23:50:32+03:00",
+      "hash": "e5d4a717",
+      "msg": "fix: nudge identity updates toward evolution over full rewrites",
+      "version": null,
+      "py_lines": 14901,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-23T23:58:42+03:00",
+      "hash": "189f7ebb",
+      "msg": "prepare for open-source: README, pyproject, gitignore",
+      "version": null,
+      "py_lines": 14901,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-24T00:04:59+03:00",
+      "hash": "0b81cd03",
+      "msg": "add screenshots: chat and settings pages",
+      "version": null,
+      "py_lines": 14901,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-24T00:08:46+03:00",
+      "hash": "a0097f43",
+      "msg": "simplify install section, add setup screenshot",
+      "version": null,
+      "py_lines": 14901,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-24T00:50:18+03:00",
+      "hash": "4e0494be",
+      "msg": "add Apple Developer code signing and notarization to build pipeline",
+      "version": null,
+      "py_lines": 14901,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-24T01:11:55+03:00",
+      "hash": "138f2f3b",
+      "msg": "migrate to joi-lab/ouroboros-desktop",
+      "version": null,
+      "py_lines": 14901,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-24T18:46:52+03:00",
+      "hash": "b1479287",
+      "msg": "add GitHub stars, X and Telegram badges to README",
+      "version": null,
+      "py_lines": 14901,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-24T21:05:19+03:00",
+      "hash": "5ddccd23",
+      "msg": "Update README.md",
+      "version": null,
+      "py_lines": 14901,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-25T15:57:52+03:00",
+      "hash": "0927bf74",
+      "msg": "feat: Enable NVIDIA API integration via OUROBOROS_LLM_BASE_URL and OUROBOROS_LLM",
+      "version": null,
+      "py_lines": 14921,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-26T16:25:52+03:00",
+      "hash": "46d47d60",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15069,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-26T16:35:16+03:00",
+      "hash": "2e8f5c42",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15069,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-27T08:23:07+03:00",
+      "hash": "006c0a2d",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15074,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-27T08:29:19+03:00",
+      "hash": "a3eceaab",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15074,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-27T08:37:30+03:00",
+      "hash": "9a686d97",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15156,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 22735
+    },
+    {
+      "ts": "2026-02-27T13:17:05+03:00",
+      "hash": "9aa14fd9",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15207,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-27T15:51:59+03:00",
+      "hash": "7990799f",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15437,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-27T23:32:24+03:00",
+      "hash": "c6a711f8",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15448,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-27T23:41:55+03:00",
+      "hash": "c7c1cc73",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15457,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-27T23:43:52+03:00",
+      "hash": "ec94ff83",
+      "msg": "Update pyproject.toml and VERSION to 3.3.1 (Principle 7)",
+      "version": null,
+      "py_lines": 15457,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-27T23:44:12+03:00",
+      "hash": "c40175b2",
+      "msg": "Update agent.py to match BONSAI code edit",
+      "version": null,
+      "py_lines": 14763,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-27T23:46:19+03:00",
+      "hash": "6e93f819",
+      "msg": "Update identity.md after evolution #5",
+      "version": null,
+      "py_lines": 14763,
+      "module_count": 44,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T10:34:10+03:00",
+      "hash": "4ffce8a0",
+      "msg": "fix: add GITHUB_USER support and fix GitHub remote URL construction",
+      "version": null,
+      "py_lines": 14948,
+      "module_count": 45,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T10:39:06+03:00",
+      "hash": "1edc4418",
+      "msg": "fix: restore agent.py (destroyed by Bonsai session)",
+      "version": null,
+      "py_lines": 15642,
+      "module_count": 45,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T10:55:31+03:00",
+      "hash": "37e37afd",
+      "msg": "fix: robust safety parser + handle DEGRADED model gracefully",
+      "version": null,
+      "py_lines": 15670,
+      "module_count": 45,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T11:00:07+03:00",
+      "hash": "a81fece3",
+      "msg": "EVOLUTION #13: Remove tests",
+      "version": null,
+      "py_lines": 14839,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T11:00:59+03:00",
+      "hash": "b76766d1",
+      "msg": "EVOLUTION #13: Corrected scratchpad path",
+      "version": null,
+      "py_lines": 14839,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T11:12:58+03:00",
+      "hash": "3ee78f07",
+      "msg": "fix: restore loop.py destroyed by EVOLUTION #13",
+      "version": null,
+      "py_lines": 15912,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T11:13:52+03:00",
+      "hash": "ecaebf70",
+      "msg": "fix: safety check reads reasoning_content as fallback",
+      "version": null,
+      "py_lines": 15915,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T11:53:55+03:00",
+      "hash": "4e0fb0bd",
+      "msg": "auto-rescue: uncommitted changes detected on startup",
+      "version": null,
+      "py_lines": 15915,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T11:55:35+03:00",
+      "hash": "d8bcae95",
+      "msg": "Refactor agent for Telegram integration",
+      "version": null,
+      "py_lines": 15220,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T14:02:08+03:00",
+      "hash": "ef28bf6e",
+      "msg": "fix: restore agent.py AGAIN (destroyed by Telegram refactor evolution)",
+      "version": null,
+      "py_lines": 15915,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T14:03:03+03:00",
+      "hash": "223a58e3",
+      "msg": "feat: protect critical files from destructive evolution writes",
+      "version": null,
+      "py_lines": 15949,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T14:55:26+03:00",
+      "hash": "e2aa9719",
+      "msg": "fix: stability improvements — provider fallback, crash loop protection, protecte",
+      "version": null,
+      "py_lines": 16037,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T15:09:33+03:00",
+      "hash": "44812a3f",
+      "msg": "fix: cap tool calls to prevent hallucination floods",
+      "version": null,
+      "py_lines": 16053,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T15:12:33+03:00",
+      "hash": "1e4b051f",
+      "msg": "fix: pass provider_name in LLM dedup to avoid OpenRouter 401",
+      "version": null,
+      "py_lines": 16057,
+      "module_count": 46,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-02-28T15:29:23+03:00",
+      "hash": "91f5ef8e",
+      "msg": "feat: smart task router — Codex (GPT-5.3) for user chat, NVIDIA for background",
+      "version": null,
+      "py_lines": 16201,
+      "module_count": 47,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T11:13:55+03:00",
+      "hash": "3eba1948",
+      "msg": "feat: Telegram bridge + Docker deployment support",
+      "version": null,
+      "py_lines": 16507,
+      "module_count": 48,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T11:20:37+03:00",
+      "hash": "8e72e194",
+      "msg": "fix: merge Docker env vars into settings on startup",
+      "version": null,
+      "py_lines": 16515,
+      "module_count": 48,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T11:23:13+03:00",
+      "hash": "53906ff5",
+      "msg": "fix: Docker git config + seed memory files for clean startup",
+      "version": null,
+      "py_lines": 16515,
+      "module_count": 48,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T20:20:42+03:00",
+      "hash": "02adb8d0",
+      "msg": "fix: extract real chat_id/user_id from Telegram updates",
+      "version": null,
+      "py_lines": 16517,
+      "module_count": 48,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T20:22:41+03:00",
+      "hash": "30c81fa1",
+      "msg": "fix: always update owner_chat_id from real Telegram message",
+      "version": null,
+      "py_lines": 16519,
+      "module_count": 48,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T20:29:26+03:00",
+      "hash": "a44c8cbd",
+      "msg": "fix: config.py respects OUROBOROS_DATA_DIR for settings path",
+      "version": null,
+      "py_lines": 16520,
+      "module_count": 48,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T21:11:04+03:00",
+      "hash": "50235b04",
+      "msg": "feat: Telegram Mini App (pixel-agents) + /monitor command",
+      "version": null,
+      "py_lines": 16643,
+      "module_count": 48,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T21:34:15+03:00",
+      "hash": "0d1904ad",
+      "msg": "fix: suppress fallback notification from user chat",
+      "version": null,
+      "py_lines": 16643,
+      "module_count": 48,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T22:01:41+03:00",
+      "hash": "c6f4f210",
+      "msg": "feat: OpenClaw proxy + Mini App redesign in Russian",
+      "version": null,
+      "py_lines": 16917,
+      "module_count": 49,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T22:13:38+03:00",
+      "hash": "137bd94d",
+      "msg": "fix: openclaw-proxy os.getlogin crash in systemd (no TTY)",
+      "version": null,
+      "py_lines": 16922,
+      "module_count": 49,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-01T22:20:13+03:00",
+      "hash": "9dfed446",
+      "msg": "fix: openclaw-proxy add --agent main flag",
+      "version": null,
+      "py_lines": 16922,
+      "module_count": 49,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-02T11:06:02+03:00",
+      "hash": "0b31ccf6",
+      "msg": "fix: supervisor loop retries indefinitely on network errors",
+      "version": null,
+      "py_lines": 16920,
+      "module_count": 49,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-02T11:53:48+03:00",
+      "hash": "41fd79b3",
+      "msg": "fix: openclaw-proxy use unique --session-id per request to bypass stale agent me",
+      "version": null,
+      "py_lines": 16921,
+      "module_count": 49,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-02T12:10:02+03:00",
+      "hash": "be25dce3",
+      "msg": "fix: openclaw-proxy skip system prompt to prevent identity conflict",
+      "version": null,
+      "py_lines": 16926,
+      "module_count": 49,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-02T12:27:56+03:00",
+      "hash": "757b88f6",
+      "msg": "fix: docker restart always + ignore pip artifact file",
+      "version": null,
+      "py_lines": 16926,
+      "module_count": 49,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    },
+    {
+      "ts": "2026-03-02T12:36:59+03:00",
+      "hash": "8c8a4687",
+      "msg": "fix: restore system prompt in openclaw-proxy",
+      "version": null,
+      "py_lines": 16921,
+      "module_count": 49,
+      "bible_bytes": 13568,
+      "system_bytes": 23168
+    }
+  ]
+}

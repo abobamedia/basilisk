@@ -1,4 +1,4 @@
-# Ouroboros v3.3.1
+# Ouroboros v3.3.2
 
 [![GitHub stars](https://img.shields.io/github/stars/joi-lab/ouroboros-desktop?style=flat&logo=github)](https://github.com/joi-lab/ouroboros-desktop/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

@@ -26,6 +26,7 @@ class LLMProvider:
     requires_content_flattening: bool   # Flatten multipart content to plain strings
     tool_choice_values: List[str]       # Supported tool_choice values
     supports_generation_cost_api: bool  # /generation?id= cost endpoint (OpenRouter)
+    use_anthropic_api: bool = False           # Use Anthropic /v1/messages instead of OpenAI format
     default_headers: Dict[str, str] = field(default_factory=dict)
     pricing: Dict[str, Tuple[float, float, float]] = field(default_factory=dict)
 
@@ -150,13 +151,19 @@ PROVIDERS: Dict[str, LLMProvider] = {
         requires_content_flattening=False,
         tool_choice_values=["auto", "none", "required"],
         supports_generation_cost_api=False,
+        use_anthropic_api=True,
         default_headers={},
         pricing={
-            "claude-opus-4-6": (15.0, 3.75, 75.0),
-            "claude-opus-4-5": (15.0, 3.75, 75.0),
-            "claude-sonnet-4-5": (3.0, 0.75, 15.0),
+            "claude-opus-4.6": (15.0, 3.75, 75.0),
+            "claude-opus-4.5": (15.0, 3.75, 75.0),
+            "claude-sonnet-4.5": (3.0, 0.75, 15.0),
             "claude-sonnet-4": (3.0, 0.75, 15.0),
-            "claude-haiku-3-5": (0.80, 0.08, 4.0),
+            "claude-haiku-4.5": (0.80, 0.08, 4.0),
+            "claude-opus-4-5-20250514": (15.0, 3.75, 75.0),
+            "claude-opus-4-20250514": (15.0, 3.75, 75.0),
+            "claude-sonnet-4-5-20250514": (3.0, 0.75, 15.0),
+            "claude-sonnet-4-20250514": (3.0, 0.75, 15.0),
+            "claude-haiku-3-5-20241022": (0.80, 0.08, 4.0),
         },
     ),
     "local": LLMProvider(

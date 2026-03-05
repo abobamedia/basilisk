@@ -384,6 +384,7 @@ function initSettings() {
                 <div class="form-row"><div class="form-field"><label>NVIDIA API Key (optional)</label><input id="s-nvidia" type="password" placeholder="nvapi-..."></div></div>
                 <div class="form-row"><div class="form-field"><label>OpenClaw Token (optional, for Codex auth)</label><input id="s-openclaw" type="password" placeholder="openclaw gateway token"></div></div>
                 <div class="form-row"><div class="form-field"><label>Bonsai API Key (optional, for free Claude)</label><input id="s-bonsai" type="password" placeholder="sk_cr_..."></div></div>
+                <div class="form-row"><div class="form-field"><label>Kiro API Key (optional, cheap Claude proxy)</label><input id="s-kiro" type="password" placeholder="sk-..."></div></div>
             </div>
             <div class="divider"></div>
             <div class="form-section">
@@ -413,19 +414,19 @@ function initSettings() {
                 <h3>Models</h3>
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-field"><label>Main Model</label><input id="s-model" value="anthropic/claude-sonnet-4.6" style="width:250px"></div>
-                    <div class="form-field"><label>Provider</label><select id="s-provider-main" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="codex">Codex (OpenClaw)</option><option value="bonsai">Bonsai (Claude)</option><option value="local">Local Model</option></select></div>
+                    <div class="form-field"><label>Provider</label><select id="s-provider-main" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="codex">Codex (OpenClaw)</option><option value="bonsai">Bonsai (Claude)</option><option value="kiro">Kiro (Claude)</option><option value="local">Local Model</option></select></div>
                 </div>
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-field"><label>Code Model</label><input id="s-model-code" value="anthropic/claude-sonnet-4.6" style="width:250px"></div>
-                    <div class="form-field"><label>Provider</label><select id="s-provider-code" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="codex">Codex (OpenClaw)</option><option value="bonsai">Bonsai (Claude)</option><option value="local">Local Model</option></select></div>
+                    <div class="form-field"><label>Provider</label><select id="s-provider-code" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="codex">Codex (OpenClaw)</option><option value="bonsai">Bonsai (Claude)</option><option value="kiro">Kiro (Claude)</option><option value="local">Local Model</option></select></div>
                 </div>
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-field"><label>Light Model</label><input id="s-model-light" value="google/gemini-3-flash-preview" style="width:250px"></div>
-                    <div class="form-field"><label>Provider</label><select id="s-provider-light" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="codex">Codex (OpenClaw)</option><option value="bonsai">Bonsai (Claude)</option><option value="local">Local Model</option></select></div>
+                    <div class="form-field"><label>Provider</label><select id="s-provider-light" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="codex">Codex (OpenClaw)</option><option value="bonsai">Bonsai (Claude)</option><option value="kiro">Kiro (Claude)</option><option value="local">Local Model</option></select></div>
                 </div>
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-field"><label>Fallback Model</label><input id="s-model-fallback" value="google/gemini-3-flash-preview" style="width:250px"></div>
-                    <div class="form-field"><label>Provider</label><select id="s-provider-fallback" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="codex">Codex (OpenClaw)</option><option value="bonsai">Bonsai (Claude)</option><option value="local">Local Model</option></select></div>
+                    <div class="form-field"><label>Provider</label><select id="s-provider-fallback" style="width:140px"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="nvidia">NVIDIA NIM</option><option value="codex">Codex (OpenClaw)</option><option value="bonsai">Bonsai (Claude)</option><option value="kiro">Kiro (Claude)</option><option value="local">Local Model</option></select></div>
                 </div>
                 <div class="form-row">
                     <div class="form-field"><label>Claude Code Model</label><input id="s-claude-code-model" value="sonnet" placeholder="sonnet, opus, or full name" style="width:250px"></div>
@@ -474,6 +475,7 @@ function initSettings() {
         if (s.NVIDIA_API_KEY) document.getElementById('s-nvidia').value = s.NVIDIA_API_KEY;
         if (s.OPENCLAW_API_TOKEN) document.getElementById('s-openclaw').value = s.OPENCLAW_API_TOKEN;
         if (s.BONSAI_API_KEY) document.getElementById('s-bonsai').value = s.BONSAI_API_KEY;
+        if (s.KIRO_API_KEY) document.getElementById('s-kiro').value = s.KIRO_API_KEY;
         if (s.OUROBOROS_MODEL) document.getElementById('s-model').value = s.OUROBOROS_MODEL;
         if (s.OUROBOROS_MODEL_CODE) document.getElementById('s-model-code').value = s.OUROBOROS_MODEL_CODE;
         if (s.OUROBOROS_MODEL_LIGHT) document.getElementById('s-model-light').value = s.OUROBOROS_MODEL_LIGHT;
@@ -610,6 +612,8 @@ function initSettings() {
         if (ocToken && !ocToken.includes('...')) body.OPENCLAW_API_TOKEN = ocToken;
         const bonsaiKey = document.getElementById('s-bonsai').value;
         if (bonsaiKey && !bonsaiKey.includes('...')) body.BONSAI_API_KEY = bonsaiKey;
+        const kiroKey = document.getElementById('s-kiro').value;
+        if (kiroKey && !kiroKey.includes('...')) body.KIRO_API_KEY = kiroKey;
         const ghToken = document.getElementById('s-gh-token').value;
         if (ghToken && !ghToken.includes('...')) body.GITHUB_TOKEN = ghToken;
 

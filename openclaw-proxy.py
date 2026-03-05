@@ -58,10 +58,36 @@ def _flatten_content(content):
 def build_prompt(messages, tools=None):
     """Combine chat messages into a single prompt string.
 
-    If tools is provided, appends tool calling instructions so the model
-    knows how to respond with structured tool_calls JSON.
+    If tools is provided, prepends a strong function-calling instruction
+    so the model outputs JSON tool calls instead of acting on its own.
     """
     parts = []
+
+    # When tools are provided, put the instruction FIRST so it dominates
+    # the model's context before any conversation history.
+    if tools:
+        tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
+        example_id = "call_" + uuid.uuid4().hex[:8]
+        header = (
+            "=== FUNCTION CALLING MODE — READ THIS FIRST ===\n"
+            "You are acting as a FUNCTION ROUTER. Your ONLY job is to decide\n"
+            "which function to call and output the call as JSON.\n"
+            "\n"
+            "MANDATORY RULES:\n"
+            "1. DO NOT perform any action yourself (no reading files, no running commands).\n"
+            "2. DO NOT explain what you are doing.\n"
+            "3. DO NOT use your own built-in tools.\n"
+            "4. Output ONLY this JSON and nothing else:\n"
+            '   {"tool_calls": [{"id": "' + example_id + '", "type": "function", '
+            '"function": {"name": "FUNCTION_NAME", "arguments": "{\\"key\\": \\"value\\"}"}}]}\n'
+            "   Where 'arguments' is a JSON-encoded STRING.\n"
+            "5. If NO function is needed (pure text answer), respond normally.\n"
+            "\n"
+            "Available functions:\n"
+            f"{tools_json}\n"
+            "=== END OF FUNCTION CALLING INSTRUCTIONS ==="
+        )
+        parts.append(header)
 
     for m in messages:
         role = m.get("role", "user")
@@ -73,14 +99,12 @@ def build_prompt(messages, tools=None):
         elif role == "assistant":
             tool_calls = m.get("tool_calls")
             if tool_calls:
-                # Represent a previous assistant tool call in the history
                 tc_json = json.dumps({"tool_calls": tool_calls}, ensure_ascii=False)
                 parts.append(f"<assistant_tool_calls>{tc_json}</assistant_tool_calls>")
             else:
                 parts.append(f"<assistant>{content}</assistant>")
 
         elif role == "tool":
-            # Result returned after a tool execution
             call_id = m.get("tool_call_id", "")
             name = m.get("name", "tool")
             parts.append(
@@ -89,28 +113,6 @@ def build_prompt(messages, tools=None):
 
         elif role == "user":
             parts.append(content)
-
-    # Append tool calling instructions if tools are provided
-    if tools:
-        tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
-        example_id = "call_" + uuid.uuid4().hex[:8]
-        instruction = (
-            "<tool_instructions>\n"
-            "You have access to the following tools.\n"
-            "To call a tool, respond with ONLY this JSON — no markdown fences, no explanation:\n"
-            '{"tool_calls": [{"id": "' + example_id + '", "type": "function", '
-            '"function": {"name": "TOOL_NAME", "arguments": "{\\"param\\": \\"value\\"}"}}]}\n'
-            "\n"
-            "Rules:\n"
-            "  - 'arguments' must be a JSON-encoded STRING (not an object)\n"
-            "  - Put all needed tool calls in the array (can be multiple)\n"
-            "  - If no tool is needed, respond normally with plain text\n"
-            "\n"
-            "Available tools:\n"
-            f"{tools_json}\n"
-            "</tool_instructions>"
-        )
-        parts.append(instruction)
 
     return "\n\n".join(parts)
 
@@ -189,6 +191,51 @@ def parse_tool_calls(text):
                 normalized = _normalize_tool_calls(raw)
                 if normalized:
                     return None, normalized
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Case 3: <TOOLCALL>[{"name": "...", "arguments": {...}}]</TOOLCALL>
+    # This is the format llm.py's rescue parser knows, added as fallback
+    tag_match = re.search(r'TOOLCALL>\s*(\[.*?\])\s*</TOOLCALL>', stripped, re.DOTALL)
+    if tag_match:
+        try:
+            items = json.loads(tag_match.group(1))
+            if isinstance(items, list):
+                calls = []
+                for item in items:
+                    name = item.get("name", "")
+                    args = item.get("arguments") or item.get("parameters") or {}
+                    if name:
+                        calls.append({
+                            "id": "call_" + uuid.uuid4().hex[:8],
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": json.dumps(args) if isinstance(args, dict) else str(args),
+                            },
+                        })
+                if calls:
+                    return None, calls
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Case 4: simple {"name": "...", "arguments": {...}} object (llm.py rescue pattern)
+    simple_match = re.search(
+        r'\{\s*"name"\s*:\s*"(\w+)"\s*,\s*"arguments"\s*:\s*(\{.*?\})\s*\}',
+        stripped, re.DOTALL
+    )
+    if simple_match:
+        try:
+            name = simple_match.group(1)
+            args = json.loads(simple_match.group(2))
+            return None, [{
+                "id": "call_" + uuid.uuid4().hex[:8],
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "arguments": json.dumps(args, ensure_ascii=False),
+                },
+            }]
         except (json.JSONDecodeError, ValueError):
             pass
 

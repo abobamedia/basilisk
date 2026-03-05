@@ -145,6 +145,17 @@ class LLMClient:
             port = int(os.environ.get("LOCAL_MODEL_PORT", str(self._local_port)))
             base_url = f"http://127.0.0.1:{port}/v1"
             client = OpenAI(base_url=base_url, api_key="local")
+        elif getattr(provider, 'use_anthropic_api', False):
+            # Provider requires Anthropic API (e.g., Kiro)
+            import anthropic
+            api_key = resolve_api_key(provider)
+            if not api_key:
+                api_key = self._api_key
+            client = anthropic.Anthropic(
+                base_url=provider.base_url,
+                api_key=api_key,
+                default_headers=provider.default_headers or {},
+            )
         else:
             api_key = resolve_api_key(provider)
             # Fall back to legacy key if provider-specific key is empty

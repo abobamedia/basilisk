@@ -397,25 +397,30 @@ def enqueue_evolution_task_if_needed() -> None:
         save_state(st)
         send_with_budget(
             int(owner_chat_id),
-            f"🧬⚠️ Evolution paused: {consecutive_failures} consecutive failures. "
-            f"Use /evolve start to resume after investigating the issue."
+            "🛑 Evolution paused: 3 consecutive failures. Fix issues and re-enable with /evolve start.",
         )
         return
 
-    remaining = budget_remaining(st)
-    if remaining < EVOLUTION_BUDGET_RESERVE:
+    # Check evolution-specific budget (not total budget)
+    evolution_budget = float(st.get("evolution_budget_usd") or 0.0)
+    if evolution_budget <= EVOLUTION_BUDGET_RESERVE:
         st["evolution_mode_enabled"] = False
         save_state(st)
-        send_with_budget(int(owner_chat_id), f"💸 Evolution stopped: ${remaining:.2f} remaining (reserve ${EVOLUTION_BUDGET_RESERVE:.0f} for conversations).")
+        send_with_budget(
+            int(owner_chat_id),
+            f"💸 Evolution stopped: ${evolution_budget:.2f} remaining (reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
+        )
         return
+
     cycle = int(st.get("evolution_cycle") or 0) + 1
+    st["evolution_cycle"] = cycle
+    save_state(st)
+
     tid = uuid.uuid4().hex[:8]
     enqueue_task({
         "id": tid, "type": "evolution",
         "chat_id": int(owner_chat_id),
-        "text": build_evolution_task_text(cycle),
+        "text": build_evolution_task_text(cycle=cycle),
     })
-    st["evolution_cycle"] = cycle
-    st["last_evolution_task_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    save_state(st)
+    persist_queue_snapshot(reason="evolution_enqueued")
     send_with_budget(int(owner_chat_id), f"🧬 Evolution #{cycle}: {tid}")

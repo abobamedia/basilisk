@@ -400,6 +400,120 @@ class LLMClient:
                     usage["cost"] = cost
 
     # ------------------------------------------------------------------
+    # Anthropic-native API (for providers like Kiro)
+    # ------------------------------------------------------------------
+
+    def _chat_anthropic_native(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        tools: Optional[List[Dict[str, Any]]],
+        max_tokens: int,
+        tool_choice: str,
+        provider_name: str,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Call Anthropic-compatible /v1/messages endpoint and convert to OpenAI msg format."""
+        import httpx
+        from ouroboros.providers import get_provider, resolve_api_key
+
+        provider = get_provider(provider_name)
+        api_key = resolve_api_key(provider) or self._api_key
+        base_url = provider.base_url.rstrip("/")
+
+        # Split system message from conversation messages
+        system_text = ""
+        conv_messages = []
+        for m in messages:
+            if m.get("role") == "system":
+                c = m.get("content", "")
+                system_text += (c if isinstance(c, str) else
+                    "\n\n".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("type") == "text")) + "\n"
+            else:
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    content = [{k: v for k, v in b.items() if k != "cache_control"}
+                               if isinstance(b, dict) else b for b in content]
+                role = m.get("role", "user")
+                if role == "tool":
+                    conv_messages.append({
+                        "role": "user",
+                        "content": [{"type": "tool_result",
+                                     "tool_use_id": m.get("tool_call_id", ""),
+                                     "content": str(content) if content else " "}],
+                    })
+                else:
+                    conv_messages.append({"role": role, "content": content or " "})
+
+        # Merge consecutive same-role messages (Anthropic requires alternation)
+        merged = []
+        for m in conv_messages:
+            if merged and merged[-1]["role"] == m["role"]:
+                prev, curr = merged[-1]["content"], m["content"]
+                if isinstance(prev, str) and isinstance(curr, str):
+                    merged[-1]["content"] = prev + "\n" + curr
+                elif isinstance(prev, list) and isinstance(curr, list):
+                    merged[-1]["content"] = prev + curr
+                elif isinstance(prev, str) and isinstance(curr, list):
+                    merged[-1]["content"] = [{"type": "text", "text": prev}] + curr
+                elif isinstance(prev, list) and isinstance(curr, str):
+                    merged[-1]["content"] = prev + [{"type": "text", "text": curr}]
+            else:
+                merged.append(m)
+        conv_messages = merged
+
+        body: Dict[str, Any] = {"model": model, "messages": conv_messages, "max_tokens": max_tokens}
+        if system_text.strip():
+            body["system"] = system_text.strip()
+
+        if tools:
+            body["tools"] = [{"name": t.get("function", {}).get("name", ""),
+                              "description": t.get("function", {}).get("description", ""),
+                              "input_schema": t.get("function", {}).get("parameters", {"type": "object", "properties": {}})}
+                             for t in tools]
+            if tool_choice == "required":
+                body["tool_choice"] = {"type": "any"}
+            elif tool_choice == "none":
+                body["tool_choice"] = {"type": "none"}
+            else:
+                body["tool_choice"] = {"type": "auto"}
+
+        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
+
+        with httpx.Client(timeout=180) as hc:
+            resp = hc.post(f"{base_url}/messages", json=body, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+
+        # Convert Anthropic response → OpenAI msg format
+        content_text = ""
+        tool_calls = []
+        for block in data.get("content", []):
+            if block.get("type") == "text":
+                content_text += block.get("text", "")
+            elif block.get("type") == "tool_use":
+                tool_calls.append({
+                    "id": block.get("id", str(uuid.uuid4())),
+                    "type": "function",
+                    "function": {"name": block.get("name", ""),
+                                 "arguments": _json.dumps(block.get("input", {}))},
+                })
+
+        msg: Dict[str, Any] = {"role": "assistant", "content": content_text or None}
+        if tool_calls:
+            msg["tool_calls"] = tool_calls
+
+        au = data.get("usage", {})
+        usage: Dict[str, Any] = {
+            "prompt_tokens": au.get("input_tokens", 0),
+            "completion_tokens": au.get("output_tokens", 0),
+            "total_tokens": au.get("input_tokens", 0) + au.get("output_tokens", 0),
+            "cached_tokens": au.get("cache_read_input_tokens", 0),
+            "cache_write_tokens": au.get("cache_creation_input_tokens", 0),
+        }
+        self._resolve_cost(provider_name, usage, {})
+        return msg, usage
+
+    # ------------------------------------------------------------------
     # Unified provider chat
     # ------------------------------------------------------------------
 
@@ -416,6 +530,12 @@ class LLMClient:
         """Unified chat method that adapts to provider quirks via descriptor flags."""
         from ouroboros.providers import get_provider
         provider = get_provider(provider_name)
+
+        # Anthropic-native providers (e.g. Kiro): use /v1/messages
+        if getattr(provider, "use_anthropic_api", False):
+            return self._chat_anthropic_native(
+                messages, model, tools, max_tokens, tool_choice, provider_name)
+
         client = self._get_client_for_provider(provider_name)
 
         # Adapt messages to provider capabilities

@@ -149,6 +149,9 @@ def ensure_state_defaults(st: Dict[str, Any]) -> Dict[str, Any]:
     st.setdefault("budget_drift_alert", False)
     st.setdefault("evolution_consecutive_failures", 0)
     st.setdefault("bg_consciousness_enabled", False)
+    total_budget = st.get("budget_total_usd", 1000.0)
+    spent_usd = st.get("spent_usd", 0.0)
+    st.setdefault("evolution_budget_usd", (total_budget - spent_usd - 2.0) * 0.5)
     for legacy_key in ("approvals", "idle_cursor", "idle_stats", "last_idle_task_at",
                         "last_auto_review_at", "last_review_task_id", "session_daily_snapshot"):
         st.pop(legacy_key, None)

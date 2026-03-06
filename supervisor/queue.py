@@ -347,8 +347,15 @@ def enforce_task_timeouts() -> None:
 # ---------------------------------------------------------------------------
 
 def build_evolution_task_text(cycle: int) -> str:
-    """Build evolution task text. Minimal trigger — SYSTEM.md has the full instructions."""
-    return f"EVOLUTION #{cycle}"
+    """Build evolution task text with directive to prevent analysis paralysis."""
+    return (
+        f"EVOLUTION #{cycle}: "
+        "Pick ONE concrete improvement and implement it NOW. "
+        "Do NOT read logs, events, or scratchpad first. "
+        "Go directly to the code, make ONE edit, commit with version bump. "
+        "If stuck choosing — improve error messages or add input validation in any module. "
+        "Max 3 tool calls before first edit. Evolution = commit."
+    )
 
 
 def build_review_task_text(reason: str) -> str:

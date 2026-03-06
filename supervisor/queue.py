@@ -401,14 +401,14 @@ def enqueue_evolution_task_if_needed() -> None:
         )
         return
 
-    # Check evolution-specific budget (not total budget)
-    evolution_budget = float(st.get("evolution_budget_usd") or 0.0)
-    if evolution_budget <= EVOLUTION_BUDGET_RESERVE:
+    # Check remaining budget dynamically
+    remaining = budget_remaining(st)
+    if remaining < EVOLUTION_BUDGET_RESERVE:
         st["evolution_mode_enabled"] = False
         save_state(st)
         send_with_budget(
             int(owner_chat_id),
-            f"💸 Evolution stopped: ${evolution_budget:.2f} remaining (reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
+            f"💸 Evolution stopped: ${remaining:.2f} remaining (reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
         )
         return
 

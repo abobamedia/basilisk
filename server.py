@@ -478,20 +478,9 @@ async def api_send_message(request: Request) -> JSONResponse:
         st = load_state()
         chat_id = int(st.get("owner_chat_id") or 1)
 
-    from supervisor.message_bus import LocalChatBridge
-    bridge = LocalChatBridge()
-    bridge._broadcast_fn = broadcast_ws_sync
-    
-    update_id = int(time.time() * 1000)
-    bridge.push_update({
-        "update_id": update_id,
-        "message": {
-            "chat": {"id": chat_id},
-            "from": {"id": chat_id},
-            "text": text,
-        }
-    })
-    
+    from supervisor.message_bus import get_bridge
+    get_bridge().ui_send(text)
+
     return JSONResponse({"ok": True})
 
 
@@ -558,23 +547,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             if msg.get("type") == "chat":
                 text = msg.get("text", "")
                 if text:
-                    from supervisor.message_bus import LocalChatBridge
-                    bridge = LocalChatBridge()
-                    bridge._broadcast_fn = broadcast_ws_sync
-                    
-                    from supervisor.state import load_state
-                    st = load_state()
-                    chat_id = int(st.get("owner_chat_id") or 1)
-                    
-                    update_id = int(time.time() * 1000)
-                    bridge.push_update({
-                        "update_id": update_id,
-                        "message": {
-                            "chat": {"id": chat_id},
-                            "from": {"id": chat_id},
-                            "text": text,
-                        }
-                    })
+                    from supervisor.message_bus import get_bridge
+                    get_bridge().ui_send(text)
     except WebSocketDisconnect:
         pass
     finally:

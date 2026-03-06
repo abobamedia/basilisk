@@ -95,7 +95,33 @@ def sort_pending() -> None:
 # ---------------------------------------------------------------------------
 
 def enqueue_task(task: Dict[str, Any], front: bool = False) -> Dict[str, Any]:
-    """Add task to PENDING queue."""
+    """Add task to PENDING queue.
+    
+    Args:
+        task: Task dict with required fields: id, chat_id, type
+        front: If True, insert at front of queue (higher priority)
+        
+    Returns:
+        The enqueued task dict
+        
+    Raises:
+        ValueError: If task is missing required fields
+    """
+    # Validate required fields
+    if not isinstance(task, dict):
+        raise ValueError(f"enqueue_task: task must be dict, got {type(task).__name__}")
+    
+    missing = []
+    if not task.get("id"):
+        missing.append("id")
+    if not task.get("chat_id"):
+        missing.append("chat_id")
+    if not task.get("type"):
+        missing.append("type")
+    
+    if missing:
+        raise ValueError(f"enqueue_task: task missing required fields: {', '.join(missing)}")
+    
     t = dict(task)
     QUEUE_SEQ_COUNTER_REF["value"] += 1
     seq = QUEUE_SEQ_COUNTER_REF["value"]
@@ -393,41 +419,58 @@ def enqueue_evolution_task_if_needed() -> None:
     st = load_state()
     if not bool(st.get("evolution_mode_enabled")):
         return
-    owner_chat_id = st.get("owner_chat_id")
-    if not owner_chat_id:
-        return
 
-    # Circuit breaker: check for consecutive evolution failures
+    # Circuit breaker: pause after 3 consecutive failures
     consecutive_failures = int(st.get("evolution_consecutive_failures") or 0)
     if consecutive_failures >= 3:
-        st["evolution_mode_enabled"] = False
-        save_state(st)
-        send_with_budget(
-            int(owner_chat_id),
-            "🛑 Evolution paused: 3 consecutive failures. Fix issues and re-enable with /evolve start.",
-        )
+        if bool(st.get("evolution_mode_enabled")):
+            save_state({"evolution_mode_enabled": False})
+            owner_chat_id = int(st.get("owner_chat_id") or 0)
+            if owner_chat_id:
+                send_with_budget(
+                    owner_chat_id,
+                    "🛑 Evolution paused: 3 consecutive failures. "
+                    "Fix issues and re-enable with /evolve start.",
+                )
         return
 
-    # Check remaining budget dynamically
-    remaining = budget_remaining(st)
-    if remaining < EVOLUTION_BUDGET_RESERVE:
-        st["evolution_mode_enabled"] = False
-        save_state(st)
-        send_with_budget(
-            int(owner_chat_id),
-            f"💸 Evolution stopped: ${remaining:.2f} remaining (reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
-        )
+    # Budget check
+    remaining = budget_remaining()
+    if remaining <= EVOLUTION_BUDGET_RESERVE:
+        if bool(st.get("evolution_mode_enabled")):
+            save_state({"evolution_mode_enabled": False})
+            owner_chat_id = int(st.get("owner_chat_id") or 0)
+            if owner_chat_id:
+                send_with_budget(
+                    owner_chat_id,
+                    f"💸 Evolution stopped: ${remaining:.2f} remaining "
+                    f"(reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
+                )
+        return
+
+    # Check evolution_budget_usd (50% of total budget reserved for evolution)
+    evolution_budget = float(st.get("evolution_budget_usd") or 0.0)
+    if evolution_budget <= 0:
+        if bool(st.get("evolution_mode_enabled")):
+            save_state({"evolution_mode_enabled": False})
+            owner_chat_id = int(st.get("owner_chat_id") or 0)
+            if owner_chat_id:
+                send_with_budget(
+                    owner_chat_id,
+                    f"💸 Evolution stopped: ${evolution_budget:.2f} remaining "
+                    f"(reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
+                )
         return
 
     cycle = int(st.get("evolution_cycle") or 0) + 1
-    st["evolution_cycle"] = cycle
-    save_state(st)
-
+    save_state({"evolution_cycle": cycle, "last_evolution_task_at": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+    owner_chat_id = int(st.get("owner_chat_id") or 0)
     tid = uuid.uuid4().hex[:8]
     enqueue_task({
         "id": tid, "type": "evolution",
-        "chat_id": int(owner_chat_id),
+        "chat_id": owner_chat_id,
         "text": build_evolution_task_text(cycle=cycle),
     })
     persist_queue_snapshot(reason="evolution_enqueued")
-    send_with_budget(int(owner_chat_id), f"🧬 Evolution #{cycle}: {tid}")
+    if owner_chat_id:
+        send_with_budget(owner_chat_id, f"🧬 Evolution #{cycle}: {tid}")

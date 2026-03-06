@@ -1,4 +1,5 @@
 openai>=1.66.0
+httpx
 requests
 dulwich
 starlette

@@ -423,47 +423,35 @@ def enqueue_evolution_task_if_needed() -> None:
     # Circuit breaker: pause after 3 consecutive failures
     consecutive_failures = int(st.get("evolution_consecutive_failures") or 0)
     if consecutive_failures >= 3:
-        if bool(st.get("evolution_mode_enabled")):
-            save_state({"evolution_mode_enabled": False})
-            owner_chat_id = int(st.get("owner_chat_id") or 0)
-            if owner_chat_id:
-                send_with_budget(
-                    owner_chat_id,
-                    "🛑 Evolution paused: 3 consecutive failures. "
-                    "Fix issues and re-enable with /evolve start.",
-                )
+        st["evolution_mode_enabled"] = False
+        save_state(st)
+        owner_chat_id = int(st.get("owner_chat_id") or 0)
+        if owner_chat_id:
+            send_with_budget(
+                owner_chat_id,
+                "🛑 Evolution paused: 3 consecutive failures. "
+                "Fix issues and re-enable with /evolve start.",
+            )
         return
 
-    # Budget check
-    remaining = budget_remaining()
-    if remaining <= EVOLUTION_BUDGET_RESERVE:
-        if bool(st.get("evolution_mode_enabled")):
-            save_state({"evolution_mode_enabled": False})
-            owner_chat_id = int(st.get("owner_chat_id") or 0)
-            if owner_chat_id:
-                send_with_budget(
-                    owner_chat_id,
-                    f"💸 Evolution stopped: ${remaining:.2f} remaining "
-                    f"(reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
-                )
-        return
-
-    # Check evolution_budget_usd (50% of total budget reserved for evolution)
-    evolution_budget = float(st.get("evolution_budget_usd") or 0.0)
-    if evolution_budget <= 0:
-        if bool(st.get("evolution_mode_enabled")):
-            save_state({"evolution_mode_enabled": False})
-            owner_chat_id = int(st.get("owner_chat_id") or 0)
-            if owner_chat_id:
-                send_with_budget(
-                    owner_chat_id,
-                    f"💸 Evolution stopped: ${evolution_budget:.2f} remaining "
-                    f"(reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
-                )
+    # Budget check (dynamic — uses actual spent_usd from state)
+    remaining = budget_remaining(st)
+    if remaining < EVOLUTION_BUDGET_RESERVE:
+        st["evolution_mode_enabled"] = False
+        save_state(st)
+        owner_chat_id = int(st.get("owner_chat_id") or 0)
+        if owner_chat_id:
+            send_with_budget(
+                owner_chat_id,
+                f"💸 Evolution stopped: ${remaining:.2f} remaining "
+                f"(reserve ${EVOLUTION_BUDGET_RESERVE} for conversations).",
+            )
         return
 
     cycle = int(st.get("evolution_cycle") or 0) + 1
-    save_state({"evolution_cycle": cycle, "last_evolution_task_at": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+    st["evolution_cycle"] = cycle
+    st["last_evolution_task_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    save_state(st)
     owner_chat_id = int(st.get("owner_chat_id") or 0)
     tid = uuid.uuid4().hex[:8]
     enqueue_task({

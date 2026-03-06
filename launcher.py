@@ -616,7 +616,7 @@ preset.addEventListener('change', () => {
 btn.addEventListener('click', async () => {
     btn.disabled = true; btn.textContent = 'Saving...';
     const data = {
-        TOTAL_BUDGET: parseFloat(document.getElementById('budget').value) || 10,
+        TOTAL_BUDGET: parseFloat(document.getElementById('budget').value) || 9999,
         OUROBOROS_MODEL: document.getElementById('model').value.trim() || 'anthropic/claude-sonnet-4.6',
     };
     const orKey = keyInput.value.trim();

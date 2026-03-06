@@ -147,7 +147,7 @@ def _handle_task_done(evt: Dict[str, Any], ctx: Any) -> None:
         rounds = int(evt.get("total_rounds") or 0)
 
         evo_cost_threshold = float(os.environ.get("OUROBOROS_EVO_COST_THRESHOLD", "0.10"))
-        if cost > evo_cost_threshold and rounds >= 1:
+        if (cost > evo_cost_threshold or rounds >= 2) and rounds >= 1:
             # Success: reset failure counter
             st["evolution_consecutive_failures"] = 0
             ctx.save_state(st)

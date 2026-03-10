@@ -320,7 +320,9 @@ def build_llm_messages(
 
     # BIBLE.md always included (Constitution requires it for every decision)
     # README.md only for evolution/review (architecture context)
-    needs_full_context = task_type in ("evolution", "review", "scheduled")
+    # evolution tasks don't need README.md — they make targeted code edits,
+    # not architectural decisions. Keeping it out saves ~2k tokens.
+    needs_full_context = task_type in ("review", "scheduled")
     static_text = (
         base_prompt + "\n\n"
         + "## BIBLE.md\n\n" + clip_text(bible_md, 180000)

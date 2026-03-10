@@ -380,7 +380,11 @@ class OuroborosAgent:
         # --- Build context (delegated to context.py) ---
         _provider_main = os.environ.get("PROVIDER_MAIN", "openrouter")
         _use_local = _provider_main == "local" or os.environ.get("USE_LOCAL_MAIN", "").lower() in ("true", "1")
-        _soft_cap = 200_000
+        # For evolution tasks use a lean 30k cap so the trimmer strips Recent logs.
+        # System prompt alone is ~13k tokens; this leaves ~17k for conversation history
+        # (a few rounds of tool calls + results) — more than enough for one targeted edit.
+        _task_type = str(task.get("type") or "")
+        _soft_cap = 30_000 if _task_type == "evolution" else 200_000
         if _use_local:
             _local_ctx = int(os.environ.get("LOCAL_MODEL_CONTEXT_LENGTH", "0"))
             if _local_ctx <= 0:
